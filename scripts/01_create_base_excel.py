@@ -59,13 +59,6 @@ clinical_sub = clinical[clinical_cols].copy()
 df = patients_sub.merge(tx_sub, on="Sample_ID", how="left")
 df = df.merge(clinical_sub, on="Sample_ID", how="left")
 
-# Fechas
-df["Born_Date"] = pd.to_datetime(df["Born_Date"], errors="coerce")
-df["Date_RT_Start"] = pd.to_datetime(df["Date_RT_Start"], errors="coerce")
-
-# Edad al inicio de RT en años
-df["Age_RT_Start"] = ((df["Date_RT_Start"] - df["Born_Date"]).dt.days / 365.25).round(1)
-
 # Orden final de columnas
 final_cols = [
     "ID",
@@ -73,7 +66,6 @@ final_cols = [
     "NHC",
     "Born_Date",
     "Date_RT_Start",
-    "Age_RT_Start",
     "PSA_Diag",
     "TStage_Diag_rec",
     "Gl_Score_Diag",
@@ -95,20 +87,7 @@ final_cols = [
 
 df = df[final_cols]
 
-# Exportar
-with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:
-    df.to_excel(writer, index=False, sheet_name="data")
-
-    ws = writer.book["data"]
-
-    # Formato de fecha para columnas concretas
-    date_columns = ["Born_Date", "Date_RT_Start"]
-
-    for col_name in date_columns:
-        col_idx = df.columns.get_loc(col_name) + 1
-
-        for row in range(2, len(df) + 2):  # desde fila 2 porque fila 1 es cabecera
-            ws.cell(row=row, column=col_idx).number_format = "DD/MM/YYYY"
+df.to_excel(OUTPUT_FILE, index=False)
 
 print(f"Archivo creado: {OUTPUT_FILE}")
 print(f"Filas: {len(df)}")
