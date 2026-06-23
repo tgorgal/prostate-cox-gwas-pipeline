@@ -173,6 +173,26 @@ for col in categorical_cols:
 
 warnings["categ_under_10_percent"] = pd.DataFrame(rare_rows)
 
+# Resumen completo de categorías
+categorical_rows = []
+
+for col in categorical_cols:
+    counts = df[col].fillna("<NA>").value_counts(dropna=False)
+    total = counts.sum()
+
+    for category, count in counts.items():
+        categorical_rows.append(
+            {
+                "variable": col,
+                "category": category,
+                "n": count,
+                "percent": round(count / total * 100, 2),
+            }
+        )
+
+warnings["categorical_summary"] = pd.DataFrame(categorical_rows)
+
+
 # ==========================
 # Exportar
 # ==========================
