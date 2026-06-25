@@ -1,4 +1,7 @@
+# Script para perfilar el dataset base y generar un informe de perfilado.
+
 from pathlib import Path
+
 import pandas as pd
 
 INPUT_FILE = Path("results/01_base_dataset.xlsx")
@@ -9,9 +12,11 @@ df = pd.read_excel(INPUT_FILE, dtype=str)
 
 report_lines = []
 
+
 def add(text=""):
     print(text)
     report_lines.append(text)
+
 
 add("=" * 80)
 add("PERFILADO DEL DATASET BASE")
@@ -43,9 +48,7 @@ for col in df.columns:
     n_minus9 = (s == "-9").sum()
     n_zero = (s == "0").sum()
 
-    add(
-        f"{col}: empty={n_empty}, -9={n_minus9}, 0={n_zero}"
-    )
+    add(f"{col}: empty={n_empty}, -9={n_minus9}, 0={n_zero}")
 
 # 3. Revisar columnas de fecha
 date_cols = ["Born_Date", "Date_RT_Start"]
@@ -61,16 +64,13 @@ for col in date_cols:
 
     parsed = pd.to_datetime(s, errors="coerce", dayfirst=True)
 
-    suspicious = df[
-        s.notna()
-        & (s != "")
-        & (s != "-9")
-        & parsed.isna()
-    ][["ID", "Sample_ID", "NHC", col]]
+    suspicious = df[s.notna() & (s != "") & (s != "-9") & parsed.isna()][
+        ["ID", "Sample_ID", "NHC", col]
+    ]
 
-    numeric_like = df[
-        s.str.fullmatch(r"\d+(\.0)?", na=False)
-    ][["ID", "Sample_ID", "NHC", col]]
+    numeric_like = df[s.str.fullmatch(r"\d+(\.0)?", na=False)][
+        ["ID", "Sample_ID", "NHC", col]
+    ]
 
     add(f"Fechas no interpretables excluyendo -9/empty: {len(suspicious)}")
     add(f"Valores numéricos tipo serial detectados: {len(numeric_like)}")
@@ -91,12 +91,9 @@ add("=" * 80)
 psa = df["PSA_Diag"].astype(str).str.strip()
 psa_num = pd.to_numeric(psa, errors="coerce")
 
-psa_non_numeric = df[
-    psa.notna()
-    & (psa != "")
-    & (psa != "-9")
-    & psa_num.isna()
-][["ID", "Sample_ID", "NHC", "PSA_Diag"]]
+psa_non_numeric = df[psa.notna() & (psa != "") & (psa != "-9") & psa_num.isna()][
+    ["ID", "Sample_ID", "NHC", "PSA_Diag"]
+]
 
 add(f"PSA no numéricos excluyendo -9/empty: {len(psa_non_numeric)}")
 
@@ -131,7 +128,9 @@ for col in text_cols:
     s = df[col].astype(str)
 
     has_spaces = df[s != s.str.strip()][["ID", "Sample_ID", "NHC", col]]
-    has_quotes = df[s.str.contains('"|\'', regex=True, na=False)][["ID", "Sample_ID", "NHC", col]]
+    has_quotes = df[s.str.contains("\"|'", regex=True, na=False)][
+        ["ID", "Sample_ID", "NHC", col]
+    ]
 
     add(f"Valores con espacios iniciales/finales: {len(has_spaces)}")
     add(f"Valores con comillas: {len(has_quotes)}")

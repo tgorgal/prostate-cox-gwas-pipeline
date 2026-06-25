@@ -1,3 +1,15 @@
+# Script para limpiar el dataset base y generar un dataset limpio,
+# junto con un archivo de advertencias:
+#    - limpia espacios y comillas
+#    - corrige categorías mal escritas
+#    - convierte -9 en valores perdidos
+#    - convierte fechas
+#    - elimina filas con PSA no numérico
+#    - convierte PSA a número
+#    - calcula edad al inicio de radioterapia
+#    - detecta categorías poco frecuentes
+#    - guarda el dataset limpio y los avisos.
+
 from pathlib import Path
 
 import pandas as pd
@@ -101,12 +113,12 @@ for col in df.columns:
 
 # Fechas
 df["Born_Date"] = pd.to_datetime(
-    df["Born_Date"].apply(convert_excel_serial_date),
+    df["Born_Date"].apply(convert_excel_serial_date),  # type: ignore
     errors="coerce",
 )
 
 df["Date_RT_Start"] = pd.to_datetime(
-    df["Date_RT_Start"].apply(convert_excel_serial_date),
+    df["Date_RT_Start"].apply(convert_excel_serial_date),  # type: ignore
     errors="coerce",
 )
 
@@ -203,9 +215,9 @@ with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:
     ws = writer.book["clean_data"]
 
     for col_name in ["Born_Date", "Date_RT_Start"]:
-        col_idx = df.columns.get_loc(col_name) + 1
+        col_idx = df.columns.get_loc(col_name) + 1  # type: ignore
         for row in range(2, len(df) + 2):
-            ws.cell(row=row, column=col_idx).number_format = "DD/MM/YYYY"
+            ws.cell(row=row, column=col_idx).number_format = "DD/MM/YYYY"  # type: ignore
 
 with pd.ExcelWriter(WARNINGS_FILE, engine="openpyxl") as writer:
     for name, table in warnings.items():

@@ -1,15 +1,3 @@
-install.packages(c(
-  "rlang",
-  "readxl",
-  "dplyr",
-  "mice",
-  "MASS",
-  "broom",
-  "glmnet",
-  "writexl"
-))
-
-
 library(readxl)
 library(dplyr)
 library(mice)

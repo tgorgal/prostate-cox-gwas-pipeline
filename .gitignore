@@ -34,3 +34,8 @@ results/
 # (Opcional) otros formatos frecuentes
 *.xls
 *.xlsm
+
+# Archivos de R
+.Rhistory
+.RData
+.Rproj.user/
