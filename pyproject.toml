@@ -1,7 +1,7 @@
 [project]
-name = "proyecto-prueba"
+name = "prostate-cox-gwas-pipeline"
 version = "0.1.0"
-description = "Add your description here"
+description = "Pipeline for preprocessing clinical covariates and preparing Cox-GWAS analyses in prostate cancer."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
