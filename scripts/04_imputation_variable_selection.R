@@ -29,50 +29,33 @@ Pr_model <- Pr %>%
     PSA_r = PSA_Diag,
 
     T_r = case_when(
-      TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T1C") ~ "T1",
-      TStage_Diag_rec %in% c("T2", "T2a", "T2a-b", "T2b", "T2c") ~ "T2",
-      TStage_Diag_rec %in% c("T3", "T3a", "T3b", "T3bc", "T3c", "T3-4") ~ "T3",
-      TStage_Diag_rec == "T4" ~ "T4",
+      TStage_Diag_rec == "T1" ~ "T1",
+      TStage_Diag_rec == "T1b" ~ "T1b",
+      TStage_Diag_rec == "T1c" ~ "T1c",
+      TStage_Diag_rec %in% c("T2", "T2a-b") ~ "T2",
+      TStage_Diag_rec == "T2a" ~ "T2a",
+      TStage_Diag_rec == "T2b" ~ "T2b",
+      TStage_Diag_rec == "T2c" ~ "T2c",
+      TStage_Diag_rec %in% c("T3", "T3bc") ~ "T3",
+      TStage_Diag_rec == "T3a" ~ "T3a",
+      TStage_Diag_rec == "T3b" ~ "T3b",
+      TStage_Diag_rec == "T3c" ~ "T3c",
+      TStage_Diag_rec %in% c("T3-4", "T4") ~ "T4",
       TRUE ~ NA_character_
     ),
 
-    Gleason_r = case_when(
-      Gl_Score_Diag < 8 ~ "<8",
-      Gl_Score_Diag >= 8 ~ "≥8",
-      TRUE ~ NA_character_
-    ),
-
+    Gleason_r = Gl_Score_Diag,
     Smoker_r = Smoker,
-
-    PTV1_r = case_when(
-      PTV1_Dose < 7000 ~ "<70Gy",
-      PTV1_Dose >= 7000 & PTV1_Dose < 7400 ~ "70-73.9Gy",
-      PTV1_Dose >= 7400 ~ "≥74Gy",
-      TRUE ~ NA_character_
-    ),
-
-    dose_fx_r = case_when(
-      Dose_fract == 180 ~ "180",
-      Dose_fract == 200 ~ "200",
-      TRUE ~ NA_character_
-    ),
-
-    fx_r = case_when(
-      N_Doses < 35 ~ "<35",
-      N_Doses >= 35 & N_Doses < 38 ~ "35-37",
-      N_Doses >= 38 ~ "≥38",
-      TRUE ~ NA_character_
-    ),
-
-    PTV3_r = case_when(
-      PTV3_Dose == 0 ~ "no",
-      PTV3_Dose > 0 ~ "yes",
-      TRUE ~ NA_character_
-    )
+    PTV1_r = PTV1_Dose,
+    dose_fx_r = Dose_fract,
+    fx_r = N_Doses,
+    PTV3_r = PTV3_Dose
   ) %>%
   mutate(
-    T_r = factor(T_r, levels = c("T1", "T2", "T3", "T4")),
-    Gleason_r = factor(Gleason_r, levels = c("<8", "≥8")),
+    T_r = factor(T_r, levels = c("T1","T1b","T1c",
+                                "T2","T2a","T2b","T2c",
+                                "T3","T3a","T3b","T3c",
+                                "T4")),
     Smoker_r = factor(Smoker_r, levels = c("no", "ex-smoker", "yes")),
 
     DM_r = factor(DM, levels = c("no", "yes")),
@@ -83,11 +66,7 @@ Pr_model <- Pr %>%
     CardDis_r = factor(CardDis, levels = c("no", "yes")),
     TUR_r = factor(TUR, levels = c("no", "yes")),
     HRR_r = factor(HRR, levels = c("no", "yes")),
-
-    PTV1_r = factor(PTV1_r, levels = c("<70Gy", "70-73.9Gy", "≥74Gy")),
-    dose_fx_r = factor(dose_fx_r, levels = c("180", "200")),
-    fx_r = factor(fx_r, levels = c("<35", "35-37", "≥38")),
-    PTV3_r = factor(PTV3_r, levels = c("no", "yes")),
+    #dose_fx_r = factor(dose_fx_r, levels = c("180", "200")),
     HT_Conc = factor(HT_Conc, levels = c("no", "yes"))
   )
 
@@ -97,8 +76,8 @@ Pr_gwas <- Pr_model %>%
   transmute(
     ID = Sample_ID,
 
-    Edad_r = Edad_r,
-    PSA_r = PSA_r,
+    Edad_r = as.numeric(Edad_r),
+    PSA_r = as.numeric(PSA_r),
 
     T_r = as.numeric(T_r),
     Gleason_r = as.numeric(Gleason_r),
@@ -116,7 +95,7 @@ Pr_gwas <- Pr_model %>%
     PTV1_r = as.numeric(PTV1_r),
     dose_fx_r = as.numeric(dose_fx_r),
     fx_r = as.numeric(fx_r),
-    PTV3_r = as.numeric(PTV3_r) - 1,
+    PTV3_r = as.numeric(PTV3_r),
     HT_Conc = as.numeric(HT_Conc) - 1
   )
 
