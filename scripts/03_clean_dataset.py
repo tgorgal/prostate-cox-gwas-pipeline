@@ -29,6 +29,7 @@ id_cols = ["ID", "Sample_ID", "NHC"]
 date_cols = [
     "Born_Date",
     "Date_RT_Start",
+    "Last_Last_FU",
     "Date_last_FU",
     "Date_exitus",
     "Date_second_tumor",
@@ -202,6 +203,11 @@ df["Born_Date"] = pd.to_datetime(
 
 df["Date_RT_Start"] = pd.to_datetime(
     df["Date_RT_Start"].apply(convert_excel_serial_date),  # type: ignore
+    errors="coerce",
+)
+
+df["Last_Last_FU"] = pd.to_datetime(
+    df["Last_Last_FU"].apply(convert_excel_serial_date),  # type: ignore
     errors="coerce",
 )
 
