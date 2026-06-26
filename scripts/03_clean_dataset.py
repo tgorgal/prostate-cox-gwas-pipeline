@@ -7,9 +7,11 @@
 #    - elimina filas con PSA no numérico
 #    - convierte PSA a número
 #    - calcula edad al inicio de radioterapia
+#    - limpia variables de seguimiento y eventos
 #    - detecta categorías poco frecuentes
 #    - guarda el dataset limpio y los avisos.
 
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -24,7 +26,13 @@ WARNINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
 df = pd.read_excel(INPUT_FILE, dtype=object)
 
 id_cols = ["ID", "Sample_ID", "NHC"]
-date_cols = ["Born_Date", "Date_RT_Start"]
+date_cols = [
+    "Born_Date",
+    "Date_RT_Start",
+    "Date_last_FU",
+    "Date_exitus",
+    "Date_second_tumor",
+]
 
 # ==========================
 # Funciones auxiliares
@@ -44,6 +52,9 @@ def convert_excel_serial_date(x):
     if pd.isna(x) or str(x).strip() == "-9":
         return pd.NA
 
+    if isinstance(x, pd.Timestamp):
+        return x
+
     if isinstance(x, (int, float)) and not isinstance(x, bool):
         return pd.to_datetime(x, unit="D", origin="1899-12-30", errors="coerce")
 
@@ -52,7 +63,27 @@ def convert_excel_serial_date(x):
     if s.replace(".0", "").isdigit() and len(s.replace(".0", "")) == 5:
         return pd.to_datetime(float(s), unit="D", origin="1899-12-30", errors="coerce")
 
-    return pd.to_datetime(s, errors="coerce")
+    if re.match(r"^\d{4}-\d{2}-\d{2}", s):
+        return pd.to_datetime(s, errors="coerce")
+
+    return pd.to_datetime(s, format="%d/%m/%Y", errors="coerce")
+
+
+def extract_first_date(x):
+    if pd.isna(x):
+        return pd.NA
+
+    s = str(x).strip()
+
+    if s in {"", "-9", "unknown", "desconocido", "nan", "NaN", "<NA>"}:
+        return pd.NA
+
+    match = re.search(r"\b\d{1,2}/\d{1,2}/\d{4}\b", s)
+
+    if match:
+        return pd.to_datetime(match.group(0), dayfirst=True, errors="coerce")
+
+    return convert_excel_serial_date(s)
 
 
 # ==========================
@@ -71,10 +102,18 @@ warnings["psa_non_numeric"] = df[
 
 # Fechas seriales
 for col in date_cols:
-    s = df[col].astype(str).str.strip()
-    warnings[f"{col}_serial_like"] = df[s.str.fullmatch(r"\d+(\.0)?", na=False)][
-        ["ID", "Sample_ID", "NHC", col]
-    ]
+    if col in df.columns:
+        s = df[col].astype(str).str.strip()
+        warnings[f"{col}_serial_like"] = df[s.str.fullmatch(r"\d+(\.0)?", na=False)][
+            ["ID", "Sample_ID", "NHC", col]
+        ]
+
+# Date_second_tumor con varias fechas
+if "Date_second_tumor" in df.columns:
+    s = df["Date_second_tumor"].astype(str).str.strip()
+    warnings["Date_second_tumor_multiple"] = df[
+        s.str.count(r"\b\d{1,2}/\d{1,2}/\d{4}\b") > 1
+    ][["ID", "Sample_ID", "NHC", "Date_second_tumor"]]
 
 # ==========================
 # Limpieza
@@ -100,6 +139,50 @@ df["TStage_Diag_rec"] = df["TStage_Diag_rec"].replace(
     }
 )
 
+# Variables de seguimiento y eventos
+df["Vital_status"] = df["Vital_status"].replace({"unknown": -9})
+
+df["Date_exitus"] = df["Date_exitus"].replace(
+    {
+        "unknown": -9,
+        "": -9,
+        " ": -9,
+    }
+)
+
+df["Biochemical_rec"] = df["Biochemical_rec"].replace(
+    {
+        "si": "yes",
+        "yer": "yes",
+    }
+)
+
+df["Local_rec"] = df["Local_rec"].replace(
+    {
+        "desconocido": -9,
+        "si": "yes",
+    }
+)
+
+df["Pelvic_rec"] = df["Pelvic_rec"].replace(
+    {
+        "desconocido": -9,
+        "si": "yes",
+    }
+)
+
+df["Distant_rec"] = df["Distant_rec"].replace(
+    {
+        "desconocido": -9,
+    }
+)
+
+df["Date_second_tumor"] = df["Date_second_tumor"].replace(
+    {
+        "desconocido": -9,
+    }
+)
+
 # Vacíos a -9 en columnas no identificadoras
 for col in df.columns:
     if col not in id_cols:
@@ -122,15 +205,28 @@ df["Date_RT_Start"] = pd.to_datetime(
     errors="coerce",
 )
 
+df["Date_last_FU"] = pd.to_datetime(
+    df["Date_last_FU"].apply(convert_excel_serial_date),  # type: ignore
+    errors="coerce",
+)
+
+df["Date_exitus"] = pd.to_datetime(
+    df["Date_exitus"].apply(convert_excel_serial_date),  # type: ignore
+    errors="coerce",
+)
+
+df["Date_second_tumor"] = pd.to_datetime(
+    df["Date_second_tumor"].apply(extract_first_date),  # type: ignore
+    errors="coerce",
+)
+
 # Eliminar filas con PSA_Diag no numérico distinto de missing
-psa_raw_clean = df["PSA_Diag"].astype(str).str.strip()
+psa_raw_clean = df["PSA_Diag"]
+psa_raw_clean_str = psa_raw_clean.astype(str).str.strip()
 psa_num_clean = pd.to_numeric(psa_raw_clean, errors="coerce")
 
 rows_psa_non_numeric = (
-    psa_raw_clean.notna()
-    & (psa_raw_clean != "")
-    & (psa_raw_clean != "-9")
-    & psa_num_clean.isna()
+    psa_raw_clean.notna() & (psa_raw_clean_str != "") & (psa_num_clean.isna())
 )
 
 df = df.loc[~rows_psa_non_numeric].copy()
@@ -162,6 +258,11 @@ categorical_cols = [
     "TUR",
     "HRR",
     "HT_Conc",
+    "Vital_status",
+    "Biochemical_rec",
+    "Local_rec",
+    "Pelvic_rec",
+    "Distant_rec",
 ]
 
 rare_rows = []
@@ -204,7 +305,6 @@ for col in categorical_cols:
 
 warnings["categorical_summary"] = pd.DataFrame(categorical_rows)
 
-
 # ==========================
 # Exportar
 # ==========================
@@ -214,10 +314,11 @@ with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:
 
     ws = writer.book["clean_data"]
 
-    for col_name in ["Born_Date", "Date_RT_Start"]:
-        col_idx = df.columns.get_loc(col_name) + 1  # type: ignore
-        for row in range(2, len(df) + 2):
-            ws.cell(row=row, column=col_idx).number_format = "DD/MM/YYYY"  # type: ignore
+    for col_name in date_cols:
+        if col_name in df.columns:
+            col_idx = df.columns.get_loc(col_name) + 1  # type: ignore
+            for row in range(2, len(df) + 2):
+                ws.cell(row=row, column=col_idx).number_format = "DD/MM/YYYY"  # type: ignore
 
 with pd.ExcelWriter(WARNINGS_FILE, engine="openpyxl") as writer:
     for name, table in warnings.items():
