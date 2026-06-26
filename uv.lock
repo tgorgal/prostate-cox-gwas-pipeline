@@ -560,7 +560,7 @@ wheels = [
 ]
 
 [[package]]
-name = "proyecto-prueba"
+name = "prostate-cox-gwas-pipeline"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
