@@ -50,16 +50,20 @@ def strip_text_columns(data):
 
 
 def convert_excel_serial_date(x):
-    if pd.isna(x) or str(x).strip() == "-9":
-        return pd.NA
+    """Convierte un valor a fecha. Devuelve pd.NaT si es nulo o -9."""
+    if pd.isna(x):
+        return pd.NaT
 
     if isinstance(x, pd.Timestamp):
         return x
 
+    s = str(x).strip()
+
+    if s in {"", "-9", "-9.0", "unknown", "desconocido", "nan", "NaN", "<NA>"}:
+        return pd.NaT
+
     if isinstance(x, (int, float)) and not isinstance(x, bool):
         return pd.to_datetime(x, unit="D", origin="1899-12-30", errors="coerce")
-
-    s = str(x).strip()
 
     if s.replace(".0", "").isdigit() and len(s.replace(".0", "")) == 5:
         return pd.to_datetime(float(s), unit="D", origin="1899-12-30", errors="coerce")
@@ -71,13 +75,15 @@ def convert_excel_serial_date(x):
 
 
 def extract_first_date(x):
+    """Extrae la primera fecha en formato dd/mm/yyyy de una cadena.
+    Devuelve pd.NaT si no se encuentra ninguna fecha válida."""
     if pd.isna(x):
-        return pd.NA
+        return pd.NaT
 
     s = str(x).strip()
 
-    if s in {"", "-9", "unknown", "desconocido", "nan", "NaN", "<NA>"}:
-        return pd.NA
+    if s in {"", "-9", "-9.0", "unknown", "desconocido", "nan", "NaN", "<NA>"}:
+        return pd.NaT
 
     match = re.search(r"\b\d{1,2}/\d{1,2}/\d{4}\b", s)
 
@@ -88,64 +94,12 @@ def extract_first_date(x):
 
 
 # ==========================
-# Auditoría antes de limpiar
-# ==========================
-
-warnings = {}
-
-# PSA no numérico
-psa_raw = df["PSA_Diag"].astype(str).str.strip()
-psa_num = pd.to_numeric(psa_raw, errors="coerce")
-
-warnings["psa_non_numeric"] = df[
-    psa_raw.notna() & (psa_raw != "") & (psa_raw != "-9") & psa_num.isna()
-][["ID", "Sample_ID", "NHC", "PSA_Diag"]]
-
-# Gleason numérico
-for col in ["Gl_FG_Diag", "Gl_SC_Diag", "Gl_Score_Diag"]:
-    df[col] = pd.to_numeric(df[col], errors="coerce")
-
-
-# Comprobar inconsistencias en Gleason
-warnings["gleason_inconsistent"] = df[
-    df["Gl_FG_Diag"].notna()
-    & df["Gl_SC_Diag"].notna()
-    & df["Gl_Score_Diag"].notna()
-    & ((df["Gl_FG_Diag"] + df["Gl_SC_Diag"]) != df["Gl_Score_Diag"])
-][
-    [
-        "ID",
-        "Sample_ID",
-        "NHC",
-        "Gl_FG_Diag",
-        "Gl_SC_Diag",
-        "Gl_Score_Diag",
-    ]
-]
-
-
-# Fechas seriales
-for col in date_cols:
-    if col in df.columns:
-        s = df[col].astype(str).str.strip()
-        warnings[f"{col}_serial_like"] = df[s.str.fullmatch(r"\d+(\.0)?", na=False)][
-            ["ID", "Sample_ID", "NHC", col]
-        ]
-
-# Date_second_tumor con varias fechas
-if "Date_second_tumor" in df.columns:
-    s = df["Date_second_tumor"].astype(str).str.strip()
-    warnings["Date_second_tumor_multiple"] = df[
-        s.str.count(r"\b\d{1,2}/\d{1,2}/\d{4}\b") > 1
-    ][["ID", "Sample_ID", "NHC", "Date_second_tumor"]]
-
-# ==========================
-# Limpieza
+# Limpieza inicial de texto
 # ==========================
 
 df = strip_text_columns(df)
 
-# Corregir valores conocidos
+# Corregir valores conocidos antes de cualquier auditoría o conversión
 df["HT_Conc"] = df["HT_Conc"].replace({"No": "no"})
 
 df["Smoker"] = df["Smoker"].replace(
@@ -157,113 +111,173 @@ df["Smoker"] = df["Smoker"].replace(
     }
 )
 
-df["TStage_Diag_rec"] = df["TStage_Diag_rec"].replace(
-    {
-        "T1C": "T1c",
-    }
-)
+df["TStage_Diag_rec"] = df["TStage_Diag_rec"].replace({"T1C": "T1c"})
 
-# Variables de seguimiento y eventos
 df["Vital_status"] = df["Vital_status"].replace({"unknown": -9})
 
-df["Date_exitus"] = df["Date_exitus"].replace(
-    {
-        "unknown": -9,
-        "": -9,
-        " ": -9,
-    }
+df["Date_exitus"] = df["Date_exitus"].replace({"unknown": -9, "": -9, " ": -9})
+
+df["Biochemical_rec"] = df["Biochemical_rec"].replace({"si": "yes", "yer": "yes"})
+
+df["Local_rec"] = df["Local_rec"].replace({"desconocido": -9, "si": "yes"})
+
+df["Pelvic_rec"] = df["Pelvic_rec"].replace({"desconocido": -9, "si": "yes"})
+
+df["Distant_rec"] = df["Distant_rec"].replace({"desconocido": -9})
+
+df["Date_second_tumor"] = df["Date_second_tumor"].replace({"desconocido": -9})
+
+# Convertir Gleason a numérico (necesario para la auditoría)
+for col in ["Gl_FG_Diag", "Gl_SC_Diag", "Gl_Score_Diag"]:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# ==========================
+# Auditoría antes de convertir -9 a NA
+# (sobre datos ya corregidos textualmente, pero con -9 aún presentes)
+# ==========================
+
+warnings = {}
+
+# PSA no numérico (excluyendo missing explícitos)
+psa_raw = df["PSA_Diag"].astype(str).str.strip()
+psa_num = pd.to_numeric(psa_raw, errors="coerce")
+
+mask_psa_non_numeric = (
+    psa_raw.notna()
+    & (psa_raw != "")
+    & (~psa_raw.isin(["-9", "-9.0", "nan", "NaN", "<NA>"]))
+    & psa_num.isna()
 )
 
-df["Biochemical_rec"] = df["Biochemical_rec"].replace(
-    {
-        "si": "yes",
-        "yer": "yes",
-    }
-)
+warnings["psa_non_numeric"] = df.loc[
+    mask_psa_non_numeric, ["ID", "Sample_ID", "NHC", "PSA_Diag"]
+]
 
-df["Local_rec"] = df["Local_rec"].replace(
-    {
-        "desconocido": -9,
-        "si": "yes",
-    }
-)
+# Inconsistencias en Gleason
+# Se exige >= 1 en los tres componentes para excluir -9 aún no convertidos a NA
+# y para aplicar el límite clínico válido (ningún componente puede ser 0 o negativo)
+warnings["gleason_inconsistent"] = df[
+    df["Gl_FG_Diag"].notna()
+    & df["Gl_SC_Diag"].notna()
+    & df["Gl_Score_Diag"].notna()
+    & (df["Gl_FG_Diag"] >= 1)
+    & (df["Gl_SC_Diag"] >= 1)
+    & (df["Gl_Score_Diag"] >= 1)
+    & ((df["Gl_FG_Diag"] + df["Gl_SC_Diag"]) != df["Gl_Score_Diag"])
+][["ID", "Sample_ID", "NHC", "Gl_FG_Diag", "Gl_SC_Diag", "Gl_Score_Diag"]]
 
-df["Pelvic_rec"] = df["Pelvic_rec"].replace(
-    {
-        "desconocido": -9,
-        "si": "yes",
-    }
-)
 
-df["Distant_rec"] = df["Distant_rec"].replace(
-    {
-        "desconocido": -9,
-    }
-)
+# Gleason 7 sin desglose (quedará ISUP_Grade = NA)
+# Cubre tanto NA como valores inválidos (<= 0, p.ej. -9 aún no convertido)
+def _is_missing_or_invalid(s: pd.Series) -> pd.Series:
+    return s.isna() | (s <= 0)
 
-df["Date_second_tumor"] = df["Date_second_tumor"].replace(
-    {
-        "desconocido": -9,
-    }
-)
 
-# Vacíos a -9 en columnas no identificadoras
-for col in df.columns:
-    if col not in id_cols:
-        df[col] = df[col].replace(["", " ", "nan", "NaN"], -9)
-        df[col] = df[col].fillna(-9)
+warnings["gleason7_no_breakdown"] = df[
+    (df["Gl_Score_Diag"] == 7)
+    & (
+        _is_missing_or_invalid(df["Gl_FG_Diag"])
+        | _is_missing_or_invalid(df["Gl_SC_Diag"])
+    )
+][["ID", "Sample_ID", "NHC", "Gl_FG_Diag", "Gl_SC_Diag", "Gl_Score_Diag"]]
 
-# Convertir -9 a NA
+# Fechas con formato serial de Excel
+# (excluye -9 y -9.0 para evitar falsos positivos)
+SERIAL_PATTERN = r"^\d+(\.0)?$"
+SERIAL_EXCLUDE = {"-9", "-9.0"}
+
+for col in date_cols:
+    if col in df.columns:
+        s = df[col].astype(str).str.strip()
+        mask_serial = s.str.fullmatch(SERIAL_PATTERN, na=False) & ~s.isin(
+            SERIAL_EXCLUDE
+        )
+        warnings[f"{col}_serial_like"] = df.loc[
+            mask_serial, ["ID", "Sample_ID", "NHC", col]
+        ]
+
+# Date_second_tumor con varias fechas
+if "Date_second_tumor" in df.columns:
+    s = df["Date_second_tumor"].astype(str).str.strip()
+    warnings["Date_second_tumor_multiple"] = df[
+        s.str.count(r"\b\d{1,2}/\d{1,2}/\d{4}\b") > 1
+    ][["ID", "Sample_ID", "NHC", "Date_second_tumor"]]
+
+# Guardar índices de filas con PSA no numérico para eliminarlas después
+idx_psa_non_numeric = df.index[mask_psa_non_numeric]
+
+# ==========================
+# Conversión de missing
+# ==========================
+
+# Rellenar vacíos con -9 solo en columnas no identificadoras y no de fecha
+non_date_non_id_cols = [
+    c for c in df.columns if c not in id_cols and c not in date_cols
+]
+
+for col in non_date_non_id_cols:
+    df[col] = df[col].replace(["", " ", "nan", "NaN"], -9)
+    df[col] = df[col].fillna(-9)
+
+# Convertir -9 a NA en columnas no identificadoras (incluye fechas)
 for col in df.columns:
     if col not in id_cols:
         df[col] = df[col].replace([-9, "-9", "-9.0"], pd.NA)
 
-# Fechas
-df["Born_Date"] = pd.to_datetime(
-    df["Born_Date"].apply(convert_excel_serial_date),  # type: ignore
-    errors="coerce",
+# ==========================
+# Conversión de fechas
+# (después de sustituir -9 por NA para que las funciones
+# reciban NA directamente y devuelvan NaT)
+# ==========================
+
+df["Born_Date"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Born_Date"]],
+    index=df.index,
 )
 
-df["Date_RT_Start"] = pd.to_datetime(
-    df["Date_RT_Start"].apply(convert_excel_serial_date),  # type: ignore
-    errors="coerce",
+df["Date_RT_Start"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Date_RT_Start"]],
+    index=df.index,
 )
 
-df["Last_Last_FU"] = pd.to_datetime(
-    df["Last_Last_FU"].apply(convert_excel_serial_date),  # type: ignore
-    errors="coerce",
+df["Last_Last_FU"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Last_Last_FU"]],
+    index=df.index,
 )
 
-df["Date_last_FU"] = pd.to_datetime(
-    df["Date_last_FU"].apply(convert_excel_serial_date),  # type: ignore
-    errors="coerce",
+df["Date_last_FU"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Date_last_FU"]],
+    index=df.index,
 )
 
-df["Date_exitus"] = pd.to_datetime(
-    df["Date_exitus"].apply(convert_excel_serial_date),  # type: ignore
-    errors="coerce",
+df["Date_exitus"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Date_exitus"]],
+    index=df.index,
 )
 
-df["Date_second_tumor"] = pd.to_datetime(
-    df["Date_second_tumor"].apply(extract_first_date),  # type: ignore
-    errors="coerce",
+df["Date_second_tumor"] = pd.Series(
+    [extract_first_date(x) for x in df["Date_second_tumor"]],
+    index=df.index,
 )
 
-# Eliminar filas con PSA_Diag no numérico distinto de missing
-psa_raw_clean = df["PSA_Diag"]
-psa_raw_clean_str = psa_raw_clean.astype(str).str.strip()
-psa_num_clean = pd.to_numeric(psa_raw_clean, errors="coerce")
+for col in date_cols:
+    if col in df.columns:
+        df[col] = pd.to_datetime(df[col], errors="coerce")
 
-rows_psa_non_numeric = (
-    psa_raw_clean.notna() & (psa_raw_clean_str != "") & (psa_num_clean.isna())
-)
+# ==========================
+# Eliminar filas con PSA_Diag no numérico
+# ==========================
 
-df = df.loc[~rows_psa_non_numeric].copy()
+df = df.drop(index=idx_psa_non_numeric).copy()
 
-# PSA numérico
+# PSA a numérico
 df["PSA_Diag"] = pd.to_numeric(df["PSA_Diag"], errors="coerce")
 
-# ISUP Grade
+# ==========================
+# Variables derivadas
+# ==========================
+
+# ISUP Grade desde Gleason
 df["ISUP_Grade"] = pd.NA
 
 df.loc[df["Gl_Score_Diag"].between(2, 6), "ISUP_Grade"] = 1
@@ -285,21 +299,28 @@ df.loc[df["Gl_Score_Diag"].isin([9, 10]), "ISUP_Grade"] = 5
 # Edad al inicio de RT
 df["Age_RT_Start"] = ((df["Date_RT_Start"] - df["Born_Date"]).dt.days / 365.25).round(1)
 
-# Insertar Age_RT_Start antes de PSA_Diag
+# ==========================
+# Reordenación de columnas
+# ==========================
+
+# Age_RT_Start antes de PSA_Diag
 cols = list(df.columns)
 cols.remove("Age_RT_Start")
 psa_pos = cols.index("PSA_Diag")
 cols = cols[:psa_pos] + ["Age_RT_Start"] + cols[psa_pos:]
 df = df[cols]
 
-# Insertar ISUP_Grade antes de Gl_Score_Diag
+# ISUP_Grade después de Gl_Score_Diag
 cols = list(df.columns)
 cols.remove("ISUP_Grade")
 gleason_pos = cols.index("Gl_Score_Diag") + 1
 cols = cols[:gleason_pos] + ["ISUP_Grade"] + cols[gleason_pos:]
 df = df[cols]
 
-# Detectar categorías minoritarias (<10%)
+# ==========================
+# Auditoría de categorías
+# ==========================
+
 categorical_cols = [
     "TStage_Diag_rec",
     "Gl_Score_Diag",
@@ -321,9 +342,12 @@ categorical_cols = [
     "Distant_rec",
 ]
 
+# Categorías con menos del 10 %
 rare_rows = []
 
 for col in categorical_cols:
+    if col not in df.columns:
+        continue
     counts = df[col].value_counts(dropna=False)
     total = counts.sum()
 
@@ -346,6 +370,8 @@ warnings["categ_under_10_percent"] = pd.DataFrame(rare_rows)
 categorical_rows = []
 
 for col in categorical_cols:
+    if col not in df.columns:
+        continue
     counts = df[col].fillna("<NA>").value_counts(dropna=False)
     total = counts.sum()
 
@@ -386,4 +412,4 @@ print(f"Filas: {len(df)}")
 print(f"Columnas: {len(df.columns)}")
 
 for name, table in warnings.items():
-    print(f"{name}: {len(table)} casos")
+    print(f"  {name}: {len(table)} casos")
