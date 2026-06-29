@@ -50,6 +50,8 @@ clinical_cols = [
     "Sample_ID",
     "PSA_Diag",
     "TStage_Diag_rec",
+    "Gl_FG_Diag",
+    "Gl_SC_Diag",
     "Gl_Score_Diag",
 ]
 
@@ -88,6 +90,8 @@ final_cols = [
     "Date_RT_Start",
     "PSA_Diag",
     "TStage_Diag_rec",
+    "Gl_FG_Diag",
+    "Gl_SC_Diag",
     "Gl_Score_Diag",
     "Smoker",
     "DM",
