@@ -120,7 +120,31 @@ final_cols = [
 
 df = df[final_cols]
 
-df.to_excel(OUTPUT_FILE, index=False)
+date_cols = [
+    "Born_Date",
+    "Date_RT_Start",
+    "Last_Last_FU",
+    "Date_last_FU",
+    "Date_exitus",
+    "Date_second_tumor",
+]
+
+with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:
+    df.to_excel(writer, index=False, sheet_name="base_data")
+
+    ws = writer.book["base_data"]
+
+    for col_name in date_cols:
+        if col_name in df.columns:
+            col_idx = list(df.columns).index(col_name) + 1
+
+            for row in range(2, len(df) + 2):
+                cell = ws.cell(row=row, column=col_idx)
+
+                if cell.value in (-9, "-9", "-9.0"):
+                    continue
+
+                cell.number_format = "DD/MM/YYYY"
 
 print(f"Archivo creado: {OUTPUT_FILE}")
 print(f"Filas: {len(df)}")
