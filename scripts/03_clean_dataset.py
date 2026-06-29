@@ -274,32 +274,6 @@ df = df.drop(index=idx_psa_non_numeric).copy()
 df["PSA_Diag"] = pd.to_numeric(df["PSA_Diag"], errors="coerce")
 
 # ==========================
-# Variables derivadas
-# ==========================
-
-# ISUP Grade desde Gleason
-df["ISUP_Grade"] = pd.NA
-
-df.loc[df["Gl_Score_Diag"].between(2, 6), "ISUP_Grade"] = 1
-
-df.loc[
-    (df["Gl_FG_Diag"] == 3) & (df["Gl_SC_Diag"] == 4) & (df["Gl_Score_Diag"] == 7),
-    "ISUP_Grade",
-] = 2
-
-df.loc[
-    (df["Gl_FG_Diag"] == 4) & (df["Gl_SC_Diag"] == 3) & (df["Gl_Score_Diag"] == 7),
-    "ISUP_Grade",
-] = 3
-
-df.loc[df["Gl_Score_Diag"] == 8, "ISUP_Grade"] = 4
-
-df.loc[df["Gl_Score_Diag"].isin([9, 10]), "ISUP_Grade"] = 5
-
-# Edad al inicio de RT
-df["Age_RT_Start"] = ((df["Date_RT_Start"] - df["Born_Date"]).dt.days / 365.25).round(1)
-
-# ==========================
 # Reordenación de columnas
 # ==========================
 
@@ -310,13 +284,6 @@ psa_pos = cols.index("PSA_Diag")
 cols = cols[:psa_pos] + ["Age_RT_Start"] + cols[psa_pos:]
 df = df[cols]
 
-# ISUP_Grade después de Gl_Score_Diag
-cols = list(df.columns)
-cols.remove("ISUP_Grade")
-gleason_pos = cols.index("Gl_Score_Diag") + 1
-cols = cols[:gleason_pos] + ["ISUP_Grade"] + cols[gleason_pos:]
-df = df[cols]
-
 # ==========================
 # Auditoría de categorías
 # ==========================
@@ -324,7 +291,6 @@ df = df[cols]
 categorical_cols = [
     "TStage_Diag_rec",
     "Gl_Score_Diag",
-    "ISUP_Grade",
     "Smoker",
     "DM",
     "RA",

@@ -44,7 +44,6 @@ Pr_model <- Pr %>%
       TRUE ~ NA_character_
     ),
 
-    Gleason_r = Gl_Score_Diag,
     Smoker_r = Smoker,
     PTV1_r = PTV1_Dose,
     dose_fx_r = Dose_fract,
@@ -76,12 +75,25 @@ Pr_gwas <- Pr_model %>%
   transmute(
     ID = Sample_ID,
 
+    Vital_status = Vital_status,
+    Last_Last_FU = Last_Last_FU,
+    Date_last_FU = Date_last_FU,
+    Date_exitus = Date_exitus,
+    Biochemical_rec = Biochemical_rec,
+    Local_rec = Local_rec,
+    Pelvic_rec = Pelvic_rec,
+    Distant_rec = Distant_rec,
+    Date_second_tumor = Date_second_tumor,
+
     Edad_r = as.numeric(Edad_r),
     PSA_r = as.numeric(PSA_r),
 
     T_r = as.numeric(T_r),
-    Gleason_r = as.numeric(Gleason_r),
     Smoker_r = as.numeric(Smoker_r) - 1,
+
+    Gl_FG_Diag = as.numeric(Gl_FG_Diag),
+    Gl_SC_Diag = as.numeric(Gl_SC_Diag),
+    Gl_Score_Diag = as.numeric(Gl_Score_Diag),
 
     DM_r = as.numeric(DM_r) - 1,
     RA_r = as.numeric(RA_r) - 1,
@@ -102,7 +114,7 @@ Pr_gwas <- Pr_model %>%
 # Imputación MICE
 
 covsPr <- c(
-  "Edad_r", "PSA_r", "T_r", "Gleason_r", "Smoker_r",
+  "Edad_r", "PSA_r", "T_r", "Gleason_Diag", "Smoker_r",
   "DM_r", "RA_r", "SLW_r", "HTA_r", "HC_r", "CardDis_r",
   "TUR_r", "HRR_r", "PTV1_r", "dose_fx_r", "fx_r",
   "PTV3_r", "HT_Conc"
@@ -117,6 +129,19 @@ Pr_gwas_i <- mice(
 
 Pr_gwas_imputed <- Pr_gwas
 Pr_gwas_imputed[, covsPr] <- complete(Pr_gwas_i)
+
+Pr_gwas_imputed <- Pr_gwas_imputed %>%
+  mutate(
+    ISUP_Grade = case_when(
+      Gl_Score_Diag >= 2 & Gl_Score_Diag <= 6 ~ 1,
+      Gl_FG_Diag == 3 & Gl_SC_Diag == 4 & Gl_Score_Diag == 7 ~ 2,
+      Gl_FG_Diag == 4 & Gl_SC_Diag == 3 & Gl_Score_Diag == 7 ~ 3,
+      Gl_Score_Diag == 7 & (is.na(Gl_FG_Diag) | is.na(Gl_SC_Diag)) ~ 2,
+      Gl_Score_Diag == 8 ~ 4,
+      Gl_Score_Diag %in% c(9, 10) ~ 5,
+      TRUE ~ NA_real_
+    )
+  )
 
 # Exportar
 
