@@ -139,7 +139,7 @@ with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:
             col_idx = list(df.columns).index(col_name) + 1
 
             for row in range(2, len(df) + 2):
-                cell = ws.cell(row=row, column=col_idx)
+                cell = ws.cell(row=row, column=col_idx)  # type: ignore
 
                 if cell.value in (-9, "-9", "-9.0"):
                     continue
