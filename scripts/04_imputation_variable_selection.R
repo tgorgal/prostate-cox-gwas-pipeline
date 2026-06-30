@@ -16,6 +16,7 @@ input_file <- "results/03_clean_dataset.xlsx"
 
 output_model <- "results/04_model_dataset.xlsx"
 output_gwas <- "results/04_gwas_covariates.tsv"
+output_derived <- "results/04_gwas_covariates_derived.tsv"
 
 set.seed(1)
 
@@ -102,6 +103,8 @@ Pr_gwas <- Pr_model %>%
     Distant_rec = Distant_rec,
     Date_second_tumor = Date_second_tumor,
 
+    TStage_Diag_rec = TStage_Diag_rec,
+
     Edad_r = as.numeric(Edad_r),
     PSA_r = as.numeric(PSA_r),
 
@@ -150,7 +153,9 @@ Pr_gwas_i <- mice(
 Pr_gwas_imputed <- Pr_gwas
 Pr_gwas_imputed[, covsPr] <- complete(Pr_gwas_i)
 
-Pr_gwas_imputed <- Pr_gwas_imputed %>%
+# Dataset derivado: imputación + ISUP + EAU Risk Score
+
+Pr_gwas_derived <- Pr_gwas_imputed %>%
   mutate(
     ISUP_Grade = case_when(
       Gl_Score_Diag >= 2 & Gl_Score_Diag <= 6 ~ 1,
@@ -162,7 +167,73 @@ Pr_gwas_imputed <- Pr_gwas_imputed %>%
       Gl_Score_Diag == 8 ~ 4,
       Gl_Score_Diag %in% c(9, 10) ~ 5,
       TRUE ~ NA_real_
+    ),
+
+    EAU_Risk_Score = case_when(
+      ISUP_Grade %in% c(4, 5) |
+        PSA_r > 20 |
+        TStage_Diag_rec %in% c("T2c", "T3", "T3a", "T3b", "T3c", "T4") ~
+        "High_risk",
+
+      ISUP_Grade == 1 &
+        PSA_r < 10 &
+        TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a") ~
+        "Low-risk",
+
+      (
+        ISUP_Grade == 2 &
+          PSA_r < 10 &
+          TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a", "T2b")
+      ) |
+        (
+          ISUP_Grade == 1 &
+            PSA_r >= 10 & PSA_r <= 20 &
+            TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a", "T2b")
+        ) |
+        (
+          ISUP_Grade == 1 &
+            PSA_r < 10 &
+            TStage_Diag_rec == "T2b"
+        ) ~
+        "Intermediate_Favourable",
+
+      (
+        ISUP_Grade == 2 &
+          PSA_r >= 10 & PSA_r <= 20 &
+          TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a", "T2b")
+      ) |
+        (
+          ISUP_Grade == 3 &
+            TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a", "T2b")
+        ) ~
+        "Intermediate_Unfavourable",
+
+      TRUE ~ NA_character_
     )
+  ) %>%
+  mutate(
+    T_r_label = factor(
+      T_r,
+      levels = 1:12,
+      labels = c("T1", "T1b", "T1c",
+                 "T2", "T2a", "T2b", "T2c",
+                 "T3", "T3a", "T3b", "T3c",
+                 "T4")
+    ),
+    Smoker_r_label = factor(
+      Smoker_r,
+      levels = c(0, 1, 2),
+      labels = c("no", "ex-smoker", "yes")
+    ),
+    DM_r_label = factor(DM_r, levels = c(0, 1), labels = c("no", "yes")),
+    RA_r_label = factor(RA_r, levels = c(0, 1), labels = c("no", "yes")),
+    SLW_r_label = factor(SLW_r, levels = c(0, 1), labels = c("no", "yes")),
+    HTA_r_label = factor(HTA_r, levels = c(0, 1), labels = c("no", "yes")),
+    HC_r_label = factor(HC_r, levels = c(0, 1), labels = c("no", "yes")),
+    CardDis_r_label = factor(CardDis_r, levels = c(0, 1), labels = c("no", "yes")),
+    TUR_r_label = factor(TUR_r, levels = c(0, 1), labels = c("no", "yes")),
+    HRR_r_label = factor(HRR_r, levels = c(0, 1), labels = c("no", "yes")),
+    HT_Conc_label = factor(HT_Conc, levels = c(0, 1), labels = c("no", "yes"))
   )
 
 
@@ -185,7 +256,9 @@ write_xlsx(
   list(
     model_dataset = Pr_model,
     gwas_numeric = Pr_gwas,
-    gwas_imputed = Pr_gwas_imputed
+    imputed_covariates = Pr_gwas_imputed[, covsPr],
+    gwas_imputed = Pr_gwas_imputed,
+    gwas_derived = Pr_gwas_derived
   ),
   output_model
 )
@@ -198,7 +271,16 @@ write.table(
   quote = FALSE
 )
 
+write.table(
+  Pr_gwas_derived,
+  output_derived,
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+
 cat("Archivos creados:\n")
 cat(output_model, "\n")
 cat(output_gwas, "\n")
+cat(output_derived, "\n")
 cat("Filas:", nrow(Pr_gwas_imputed), "\n")
