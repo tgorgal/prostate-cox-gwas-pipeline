@@ -277,6 +277,9 @@ df["PSA_Diag"] = pd.to_numeric(df["PSA_Diag"], errors="coerce")
 # Reordenación de columnas
 # ==========================
 
+# Edad al inicio de RT
+df["Age_RT_Start"] = ((df["Date_RT_Start"] - df["Born_Date"]).dt.days / 365.25).round(1)
+
 # Age_RT_Start antes de PSA_Diag
 cols = list(df.columns)
 cols.remove("Age_RT_Start")
