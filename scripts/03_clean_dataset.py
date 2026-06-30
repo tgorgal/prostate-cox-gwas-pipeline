@@ -32,6 +32,10 @@ date_cols = [
     "Last_Last_FU",
     "Date_last_FU",
     "Date_exitus",
+    "Biochemical_rec_date",
+    "Local_rec_date",
+    "Pelvic_rec_date",
+    "Distant_rec_date",
     "Date_second_tumor",
 ]
 
@@ -252,6 +256,26 @@ df["Date_last_FU"] = pd.Series(
 
 df["Date_exitus"] = pd.Series(
     [convert_excel_serial_date(x) for x in df["Date_exitus"]],
+    index=df.index,
+)
+
+df["Biochemical_rec_date"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Biochemical_rec_date"]],
+    index=df.index,
+)
+
+df["Local_rec_date"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Local_rec_date"]],
+    index=df.index,
+)
+
+df["Pelvic_rec_date"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Pelvic_rec_date"]],
+    index=df.index,
+)
+
+df["Distant_rec_date"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Distant_rec_date"]],
     index=df.index,
 )
 

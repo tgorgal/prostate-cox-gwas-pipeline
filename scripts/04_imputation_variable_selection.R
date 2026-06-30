@@ -86,7 +86,15 @@ Pr_model <- Pr %>%
 # Dataset numérico para GWAS
 
 date_cols <- c(
-  "Last_Last_FU", "Date_last_FU", "Date_exitus", "Date_second_tumor"
+  "Date_RT_Start",
+  "Last_Last_FU",
+  "Date_last_FU",
+  "Date_exitus",
+  "Biochemical_rec_date",
+  "Local_rec_date",
+  "Pelvic_rec_date",
+  "Distant_rec_date",
+  "Date_second_tumor"
 )
 
 Pr_gwas <- Pr_model %>%
@@ -94,13 +102,24 @@ Pr_gwas <- Pr_model %>%
     ID = Sample_ID,
 
     Vital_status = Vital_status,
+
+    Date_RT_Start = Date_RT_Start,
     Last_Last_FU = Last_Last_FU,
     Date_last_FU = Date_last_FU,
     Date_exitus = Date_exitus,
+
     Biochemical_rec = Biochemical_rec,
+    Biochemical_rec_date = Biochemical_rec_date,
+
     Local_rec = Local_rec,
+    Local_rec_date = Local_rec_date,
+
     Pelvic_rec = Pelvic_rec,
+    Pelvic_rec_date = Pelvic_rec_date,
+
     Distant_rec = Distant_rec,
+    Distant_rec_date = Distant_rec_date,
+
     Date_second_tumor = Date_second_tumor,
 
     TStage_Diag_rec = TStage_Diag_rec,
@@ -155,7 +174,7 @@ Pr_gwas_imputed[, covsPr] <- complete(Pr_gwas_i)
 
 # Dataset derivado: imputación + ISUP + EAU Risk Score
 
-Pr_gwas_derived <- Pr_gwas_imputed %>%
+Pr_analysis <- Pr_gwas_imputed %>%
   mutate(
     ISUP_Grade = case_when(
       Gl_Score_Diag >= 2 & Gl_Score_Diag <= 6 ~ 1,
@@ -238,9 +257,13 @@ Pr_gwas_derived <- Pr_gwas_imputed %>%
 
 
 # ── Convertir fechas a texto DD/MM/YYYY en Pr_model antes de exportar ──
+
 date_cols_model <- c(
   "Born_Date", "Date_RT_Start", "Last_Last_FU",
-  "Date_last_FU", "Date_exitus", "Date_second_tumor"
+  "Date_last_FU", "Date_exitus",
+  "Biochemical_rec_date", "Local_rec_date",
+  "Pelvic_rec_date", "Distant_rec_date",
+  "Date_second_tumor"
 )
 
 Pr_model <- Pr_model %>%
@@ -258,7 +281,7 @@ write_xlsx(
     gwas_numeric = Pr_gwas,
     imputed_covariates = Pr_gwas_imputed[, covsPr],
     gwas_imputed = Pr_gwas_imputed,
-    gwas_derived = Pr_gwas_derived
+    gwas_derived = Pr_analysis
   ),
   output_model
 )
@@ -272,7 +295,7 @@ write.table(
 )
 
 write.table(
-  Pr_gwas_derived,
+  Pr_analysis,
   output_derived,
   sep = "\t",
   row.names = FALSE,

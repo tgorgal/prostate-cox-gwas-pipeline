@@ -68,6 +68,10 @@ status_cols = [
     "Local_rec",
     "Pelvic_rec",
     "Distant_rec",
+    "Biochemical_rec_date",
+    "Local_rec_date",
+    "Pelvic_rec_date",
+    "Distant_rec_date",
     "Date_second_tumor",
 ]
 
@@ -114,9 +118,13 @@ final_cols = [
     "Date_last_FU",
     "Date_exitus",
     "Biochemical_rec",
+    "Biochemical_rec_date",
     "Local_rec",
+    "Local_rec_date",
     "Pelvic_rec",
+    "Pelvic_rec_date",
     "Distant_rec",
+    "Distant_rec_date",
     "Date_second_tumor",
 ]
 
