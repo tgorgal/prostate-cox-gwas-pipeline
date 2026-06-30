@@ -23,6 +23,16 @@ set.seed(1)
 
 Pr <- read_excel(input_file)
 
+numeric_cols <- c(
+  "Age_RT_Start", "PSA_Diag",
+  "Gl_FG_Diag", "Gl_SC_Diag", "Gl_Score_Diag",
+  "PTV1_Dose", "Dose_fract", "N_Doses", "PTV3_Dose"
+)
+
+Pr <- Pr %>%
+  mutate(across(all_of(numeric_cols), as.numeric))
+
+
 ## Recodificación para modelos en R
 # Variables como factores
 
@@ -74,6 +84,10 @@ Pr_model <- Pr %>%
 
 # Dataset numérico para GWAS
 
+date_cols <- c(
+  "Last_Last_FU", "Date_last_FU", "Date_exitus", "Date_second_tumor"
+)
+
 Pr_gwas <- Pr_model %>%
   transmute(
     ID = Sample_ID,
@@ -112,7 +126,10 @@ Pr_gwas <- Pr_model %>%
     fx_r = as.numeric(fx_r),
     PTV3_r = as.numeric(PTV3_r),
     HT_Conc = as.numeric(HT_Conc) - 1
-  )
+  ) %>%
+  # ── Convertir fechas a texto DD/MM/YYYY ──────────────────────────────────
+  mutate(across(all_of(date_cols), ~ format(as.Date(.x), "%d/%m/%Y")))
+
 
 # Imputación MICE
 
@@ -145,6 +162,20 @@ Pr_gwas_imputed <- Pr_gwas_imputed %>%
       TRUE ~ NA_real_
     )
   )
+
+
+# ── Convertir fechas a texto DD/MM/YYYY en Pr_model antes de exportar ──
+date_cols_model <- c(
+  "Born_Date", "Date_RT_Start", "Last_Last_FU",
+  "Date_last_FU", "Date_exitus", "Date_second_tumor"
+)
+
+Pr_model <- Pr_model %>%
+  mutate(across(
+    any_of(date_cols_model),
+    ~ format(as.Date(.x), "%d/%m/%Y")
+  ))
+
 
 # Exportar
 
