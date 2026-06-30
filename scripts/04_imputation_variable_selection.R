@@ -156,7 +156,9 @@ Pr_gwas_imputed <- Pr_gwas_imputed %>%
       Gl_Score_Diag >= 2 & Gl_Score_Diag <= 6 ~ 1,
       Gl_FG_Diag == 3 & Gl_SC_Diag == 4 & Gl_Score_Diag == 7 ~ 2,
       Gl_FG_Diag == 4 & Gl_SC_Diag == 3 & Gl_Score_Diag == 7 ~ 3,
-      Gl_Score_Diag == 7 & (is.na(Gl_FG_Diag) | is.na(Gl_SC_Diag)) ~ 2,
+      Gl_Score_Diag == 7 & (is.na(Gl_FG_Diag) | is.na(Gl_SC_Diag) |!(
+        (Gl_FG_Diag == 3 & Gl_SC_Diag == 4) |
+        (Gl_FG_Diag == 4 & Gl_SC_Diag == 3))) ~ 2,
       Gl_Score_Diag == 8 ~ 4,
       Gl_Score_Diag %in% c(9, 10) ~ 5,
       TRUE ~ NA_real_
