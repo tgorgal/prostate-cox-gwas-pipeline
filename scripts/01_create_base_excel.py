@@ -1,3 +1,5 @@
+# Crear un dataset base a partir de las hojas del fichero Excel original
+
 from pathlib import Path
 
 import pandas as pd

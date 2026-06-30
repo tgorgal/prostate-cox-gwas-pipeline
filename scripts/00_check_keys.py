@@ -1,3 +1,5 @@
+# Comprobación de las claves de los ficheros Excel
+
 from pathlib import Path
 
 import pandas as pd
@@ -7,10 +9,7 @@ EXCEL_FILE = Path("data/2026_03_18-Ca.Prostata_update_MA_v3.0.xlsx")
 SHEETS = ["Patients", "Tx", "Clinical"]
 KEYS = ["Id", "Sample_ID", "NHC"]
 
-dfs = {
-    sheet: pd.read_excel(EXCEL_FILE, sheet_name=sheet)
-    for sheet in SHEETS
-}
+dfs = {sheet: pd.read_excel(EXCEL_FILE, sheet_name=sheet) for sheet in SHEETS}
 
 print("=" * 70)
 print("COMPROBACIÓN DE COLUMNAS")
@@ -34,7 +33,6 @@ print("=" * 70)
 reference = dfs["Patients"][KEYS].astype(str)
 
 for sheet in ["Tx", "Clinical"]:
-
     current = dfs[sheet][KEYS].astype(str)
 
     print(f"\nPatients vs {sheet}")
