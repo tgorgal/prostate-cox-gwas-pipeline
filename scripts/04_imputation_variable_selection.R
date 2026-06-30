@@ -1,3 +1,6 @@
+# Imputación de covariables
+# y selección de variables para modelos de regresión
+
 library(readxl)
 library(dplyr)
 library(mice)
@@ -114,7 +117,7 @@ Pr_gwas <- Pr_model %>%
 # Imputación MICE
 
 covsPr <- c(
-  "Edad_r", "PSA_r", "T_r", "Gleason_Diag", "Smoker_r",
+  "Edad_r", "PSA_r", "T_r", "Gl_Score_Diag", "Smoker_r",
   "DM_r", "RA_r", "SLW_r", "HTA_r", "HC_r", "CardDis_r",
   "TUR_r", "HRR_r", "PTV1_r", "dose_fx_r", "fx_r",
   "PTV3_r", "HT_Conc"
