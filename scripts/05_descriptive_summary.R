@@ -69,7 +69,7 @@ categorical_summary <- lapply(categorical_vars, function(var) {
       category = as.character(.data[[var]]),
       percent = round(n / sum(n) * 100, 2)
     ) %>%
-    select(variable, category, n, percent)
+    dplyr::select(variable, category, n, percent)
 }) %>%
   bind_rows()
 
