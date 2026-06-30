@@ -1,0 +1,148 @@
+# Modelos univariantes de supervivencia
+
+library(readxl)
+library(dplyr)
+library(survival)
+library(broom)
+library(writexl)
+
+input_file <- "results/06_survival_dataset.xlsx"
+output_file <- "results/07_univariate_models.xlsx"
+
+Pr <- read_excel(input_file, sheet = "survival_dataset")
+
+covariates <- c(
+  "Edad_r",
+  "PSA_r",
+  "T_r",
+  "Gl_Score_Diag",
+  "ISUP_Grade",
+  "EAU_Risk_Score",
+  "Smoker_r",
+  "DM_r",
+  "RA_r",
+  "HTA_r",
+  "HC_r",
+  "CardDis_r",
+  "TUR_r",
+  "HRR_r",
+  "PTV1_r",
+  "dose_fx_r",
+  "fx_r",
+  "PTV3_r",
+  "HT_Conc"
+)
+
+run_univariate_cox <- function(data, time_col, event_col, covariates, outcome_name) {
+  results <- list()
+  warnings_list <- list()
+
+  for (var in covariates) {
+    formula <- as.formula(
+      paste0("Surv(", time_col, ", ", event_col, ") ~ ", var)
+    )
+
+    warning_message <- NA_character_
+
+    model <- tryCatch(
+      withCallingHandlers(
+        coxph(formula, data = data),
+        warning = function(w) {
+          warning_message <<- conditionMessage(w)
+          invokeRestart("muffleWarning")
+        }
+      ),
+      error = function(e) {
+        warning_message <<- conditionMessage(e)
+        NULL
+      }
+    )
+
+    if (!is.null(model)) {
+      results[[var]] <- tidy(
+        model,
+        exponentiate = TRUE,
+        conf.int = TRUE
+      ) %>%
+        mutate(
+          outcome = outcome_name,
+          variable = var,
+          .before = 1
+        )
+    }
+
+    if (!is.na(warning_message)) {
+      warnings_list[[var]] <- data.frame(
+        outcome = outcome_name,
+        variable = var,
+        warning = warning_message
+      )
+    }
+  }
+
+  list(
+    results = bind_rows(results),
+    warnings = bind_rows(warnings_list)
+  )
+}
+
+os <- run_univariate_cox(
+  Pr,
+  "OS_time_months",
+  "OS_event",
+  covariates,
+  "OS"
+)
+
+bcr <- run_univariate_cox(
+  Pr,
+  "BCR_time_months",
+  "BCR_event",
+  covariates,
+  "BCR"
+)
+
+local <- run_univariate_cox(
+  Pr,
+  "Local_time_months",
+  "Local_event",
+  covariates,
+  "Local"
+)
+
+pelvic <- run_univariate_cox(
+  Pr,
+  "Pelvic_time_months",
+  "Pelvic_event",
+  covariates,
+  "Pelvic"
+)
+
+distant <- run_univariate_cox(
+  Pr,
+  "Distant_time_months",
+  "Distant_event",
+  covariates,
+  "Distant"
+)
+
+write_xlsx(
+  list(
+    OS = os$results,
+    BCR = bcr$results,
+    Local = local$results,
+    Pelvic = pelvic$results,
+    Distant = distant$results,
+    model_warnings = bind_rows(
+      os$warnings,
+      bcr$warnings,
+      local$warnings,
+      pelvic$warnings,
+      distant$warnings
+    )
+  ),
+  output_file
+)
+
+cat("Archivo creado:\n")
+cat(output_file, "\n")
