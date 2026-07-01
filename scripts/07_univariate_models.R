@@ -59,6 +59,22 @@ run_univariate_cox <- function(data, time_col, event_col, covariates, outcome_na
     )
 
     if (!is.null(model)) {
+
+     # --- N total y eventos ---
+     n_total  <- model$n
+     n_events <- model$nevent
+
+     # --- N por categoría (solo para factores/caracteres) ---
+     if (is.factor(data[[var]]) || is.character(data[[var]])) {
+       n_by_level <- table(data[[var]], useNA = "no")
+       n_detail   <- paste(
+         paste0(names(n_by_level), ": ", as.integer(n_by_level)),
+         collapse = " | "
+       )
+     } else {
+       n_detail <- NA_character_  # continua: no aplica desglose
+     }
+
       results[[var]] <- tidy(model, exponentiate = TRUE, conf.int = TRUE) %>%
         mutate(
           outcome  = outcome_name,
@@ -66,9 +82,13 @@ run_univariate_cox <- function(data, time_col, event_col, covariates, outcome_na
           HR       = estimate,
           CI95     = paste0(round(conf.low, 3), " - ", round(conf.high, 3)),
           p_value  = p.value,
-          significant = if_else(p.value < 0.05, "Yes", "No")
+          significant = if_else(p.value < 0.05, "Yes", "No"),
+          N           = n_total,
+          N_events    = n_events,
+          N_by_level  = n_detail     # NA para continuas, "0: 123 | 1: 45" para categóricas
         ) %>%
-        dplyr::select(outcome, variable, HR, CI95, p_value, significant)
+        dplyr::select(outcome, variable, N, N_events, N_by_level,
+                      HR, CI95, p_value, significant)
     }
 
     if (!is.na(warning_message)) {
