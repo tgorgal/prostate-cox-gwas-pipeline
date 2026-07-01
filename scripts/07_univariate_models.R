@@ -59,72 +59,44 @@ run_univariate_cox <- function(data, time_col, event_col, covariates, outcome_na
     )
 
     if (!is.null(model)) {
-      results[[var]] <- tidy(
-        model,
-        exponentiate = TRUE,
-        conf.int = TRUE
-      ) %>%
+      results[[var]] <- tidy(model, exponentiate = TRUE, conf.int = TRUE) %>%
         mutate(
-          outcome = outcome_name,
+          outcome  = outcome_name,
           variable = var,
-          .before = 1
-        )
+          HR       = estimate,
+          CI95     = paste0(round(conf.low, 3), " - ", round(conf.high, 3)),
+          p_value  = p.value,
+          significant = if_else(p.value < 0.05, "Yes", "No")
+        ) %>%
+        dplyr::select(outcome, variable, HR, CI95, p_value, significant)
     }
 
     if (!is.na(warning_message)) {
       warnings_list[[var]] <- data.frame(
-        outcome = outcome_name,
+        outcome  = outcome_name,
         variable = var,
-        warning = warning_message
+        warning  = warning_message
       )
     }
   }
 
+  # Añadir FDR sobre todos los p-valores del outcome de una vez
+  results_df <- bind_rows(results) %>%
+    mutate(p_value_FDR = p.adjust(p_value, method = "BH"),
+           significant_FDR = if_else(p_value_FDR < 0.05, "Yes", "No"))
+
   list(
-    results = bind_rows(results),
+    results  = results_df,
     warnings = bind_rows(warnings_list)
   )
 }
 
-os <- run_univariate_cox(
-  Pr,
-  "OS_time_months",
-  "OS_event",
-  covariates,
-  "OS"
-)
+os      <- run_univariate_cox(Pr, "OS_time_months",      "OS_event",      covariates, "OS")
+bcr     <- run_univariate_cox(Pr, "BCR_time_months",     "BCR_event",     covariates, "BCR")
+local   <- run_univariate_cox(Pr, "Local_time_months",   "Local_event",   covariates, "Local")
+pelvic  <- run_univariate_cox(Pr, "Pelvic_time_months",  "Pelvic_event",  covariates, "Pelvic")
+distant <- run_univariate_cox(Pr, "Distant_time_months", "Distant_event", covariates, "Distant")
 
-bcr <- run_univariate_cox(
-  Pr,
-  "BCR_time_months",
-  "BCR_event",
-  covariates,
-  "BCR"
-)
-
-local <- run_univariate_cox(
-  Pr,
-  "Local_time_months",
-  "Local_event",
-  covariates,
-  "Local"
-)
-
-pelvic <- run_univariate_cox(
-  Pr,
-  "Pelvic_time_months",
-  "Pelvic_event",
-  covariates,
-  "Pelvic"
-)
-
-distant <- run_univariate_cox(
-  Pr,
-  "Distant_time_months",
-  "Distant_event",
-  covariates,
-  "Distant"
-)
 
 write_xlsx(
   list(
