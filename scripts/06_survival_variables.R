@@ -25,6 +25,7 @@ Pr_surv <- Pr %>%
     Pelvic_rec_date = parse_date(Pelvic_rec_date),
     Distant_rec_date = parse_date(Distant_rec_date),
 
+    # Supervivencia global (OS)
     OS_event = case_when(
       Vital_status == "dead" ~ 1,
       Vital_status == "alive" ~ 0,
@@ -39,6 +40,8 @@ Pr_surv <- Pr %>%
 
     OS_time_months = OS_time_days / 30.44,
 
+
+    # Supervivencia libre de recurrencia bioquímica (BCR)
     BCR_event = case_when(
       Biochemical_rec == "yes" ~ 1,
       Biochemical_rec == "no" ~ 0,
@@ -53,6 +56,7 @@ Pr_surv <- Pr %>%
 
     BCR_time_months = BCR_time_days / 30.44,
 
+    # Supervivencia local (Local)
     Local_event = case_when(
       Local_rec == "yes" ~ 1,
       Local_rec == "no" ~ 0,
@@ -67,6 +71,7 @@ Pr_surv <- Pr %>%
 
     Local_time_months = Local_time_days / 30.44,
 
+    # Supervivencia pélvica (Pelvic)
     Pelvic_event = case_when(
       Pelvic_rec == "yes" ~ 1,
       Pelvic_rec == "no" ~ 0,
@@ -81,6 +86,7 @@ Pr_surv <- Pr %>%
 
     Pelvic_time_months = Pelvic_time_days / 30.44,
 
+    # Supervivencia distante (Distant)
     Distant_event = case_when(
       Distant_rec == "yes" ~ 1,
       Distant_rec == "no" ~ 0,
