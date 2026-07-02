@@ -43,6 +43,7 @@ Pr_model <- Pr %>%
     PSA_r = PSA_Diag,
 
     T_r = case_when(
+      TStage_Diag_rec == "Tx" ~ "Tx",
       TStage_Diag_rec == "T1" ~ "T1",
       TStage_Diag_rec == "T1b" ~ "T1b",
       TStage_Diag_rec == "T1c" ~ "T1c",
@@ -65,7 +66,7 @@ Pr_model <- Pr %>%
     PTV3_r = PTV3_Dose
   ) %>%
   mutate(
-    T_r = factor(T_r, levels = c("T1","T1b","T1c",
+    T_r = factor(T_r, levels = c("Tx","T1","T1b","T1c",
                                 "T2","T2a","T2b","T2c",
                                 "T3","T3a","T3b","T3c",
                                 "T4")),
@@ -127,7 +128,12 @@ Pr_gwas <- Pr_model %>%
     Edad_r = as.numeric(Edad_r),
     PSA_r = as.numeric(PSA_r),
 
-    T_r = as.numeric(T_r),
+    # Tx → 0 (categoría especial, no se imputa); T1–T4 → 1–12
+    # Con "Tx" como nivel 1 del factor, as.numeric devuelve 1 para Tx, 2 para T1, ..., 13 para T4
+    T_r = case_when(
+      T_r == "Tx" ~ 0L,
+      TRUE ~ as.integer(as.numeric(T_r)) - 1L
+    ),
     Smoker_r = as.numeric(Smoker_r) - 1,
 
     Gl_FG_Diag = as.numeric(Gl_FG_Diag),
@@ -153,11 +159,12 @@ Pr_gwas <- Pr_model %>%
   mutate(across(all_of(date_cols), ~ format(as.Date(.x), "%d/%m/%Y")))
 
 
+# ==========================
 # Imputación MICE
+# ==========================
 # T_r se imputa con regresión logística ordinal (polr) para garantizar
 # que los valores imputados sean siempre enteros válidos dentro de 1-12,
 # ya que es una variable ordinal discreta.
-
 
 covsPr <- c(
   "Edad_r", "PSA_r", "T_r", "Gl_Score_Diag", "Smoker_r",
@@ -166,8 +173,19 @@ covsPr <- c(
   "PTV3_r", "HT_Conc"
 )
 
-# Convertir T_r a factor ordenado para que mice lo trate como ordinal
-Pr_gwas_mice <- Pr_gwas
+# ==========================
+# Separar filas Tx antes de imputar
+# Tx no es un dato perdido sino una categoría clínica propia:
+# "tumor primario no evaluable". No debe ser imputado.
+# ==========================
+
+idx_tx <- which(Pr_gwas$T_r == 0)       # índices de filas Tx
+idx_no_tx <- which(Pr_gwas$T_r != 0)    # resto de filas
+
+Pr_gwas_no_tx <- Pr_gwas[idx_no_tx, ]   # subset sin Tx para imputar
+
+# Convertir T_r a factor ordenado (niveles 1-12) para mice
+Pr_gwas_mice <- Pr_gwas_no_tx
 Pr_gwas_mice$T_r <- factor(
   Pr_gwas_mice$T_r,
   levels = 1:12,
@@ -185,18 +203,16 @@ Pr_gwas_i <- mice(
   printFlag = FALSE
 )
 
-Pr_gwas_i <- mice(
-  Pr_gwas[, covsPr],
-  m = 5,
-  seed = 1,
-  printFlag = FALSE
-)
+# Aplicar imputación al subset sin Tx
+Pr_gwas_no_tx_imputed <- Pr_gwas_no_tx
+Pr_gwas_no_tx_imputed[, covsPr] <- complete(Pr_gwas_i)[, covsPr]
 
-Pr_gwas_imputed <- Pr_gwas
-Pr_gwas_imputed[, covsPr] <- complete(Pr_gwas_i)
+# Reconvertir T_r a numérico entero
+Pr_gwas_no_tx_imputed$T_r <- as.integer(as.character(Pr_gwas_no_tx_imputed$T_r))
 
-# Reconvertir T_r a numérico entero tras la imputación
-Pr_gwas_imputed$T_r <- as.integer(as.character(Pr_gwas_imputed$T_r))
+# Reintroducir filas Tx (T_r = 0) sin modificar
+Pr_gwas_imputed <- bind_rows(Pr_gwas_no_tx_imputed, Pr_gwas[idx_tx, ]) %>%
+  arrange(match(ID, Pr_gwas$ID))  # restaurar orden original
 
 # ==========================
 # Reconstruir etiqueta de T imputado
@@ -210,13 +226,15 @@ T_levels <- c("T1","T1b","T1c",
 
 Pr_gwas_imputed <- Pr_gwas_imputed %>%
   mutate(
-    TStage_imputed = factor(T_r, levels = 1:12, labels = T_levels)
+    # T_r == 0 → "Tx"; T_r 1-12 → T_levels
+    # Se usa factor() con levels 0:12 y labels c("Tx", T_levels)
+    TStage_imputed = factor(T_r, levels = c(0L, 1:12), labels = c("Tx", T_levels))
   )
 
-
-
-
+# ==========================
 # Dataset derivado: imputación + ISUP + EAU Risk Score
+# (EAU calculado con TStage_imputed en lugar de TStage_Diag_rec)
+# ==========================
 
 Pr_analysis <- Pr_gwas_imputed %>%
   mutate(
@@ -224,7 +242,7 @@ Pr_analysis <- Pr_gwas_imputed %>%
       Gl_Score_Diag >= 2 & Gl_Score_Diag <= 6 ~ 1,
       Gl_FG_Diag == 3 & Gl_SC_Diag == 4 & Gl_Score_Diag == 7 ~ 2,
       Gl_FG_Diag == 4 & Gl_SC_Diag == 3 & Gl_Score_Diag == 7 ~ 3,
-      Gl_Score_Diag == 7 & (is.na(Gl_FG_Diag) | is.na(Gl_SC_Diag) |!(
+      Gl_Score_Diag == 7 & (is.na(Gl_FG_Diag) | is.na(Gl_SC_Diag) | !(
         (Gl_FG_Diag == 3 & Gl_SC_Diag == 4) |
         (Gl_FG_Diag == 4 & Gl_SC_Diag == 3))) ~ 2,
       Gl_Score_Diag == 8 ~ 4,
@@ -235,39 +253,40 @@ Pr_analysis <- Pr_gwas_imputed %>%
     EAU_Risk_Score = case_when(
       ISUP_Grade %in% c(4, 5) |
         PSA_r > 20 |
-        TStage_Diag_rec %in% c("T2c", "T3", "T3a", "T3b", "T3c", "T4") ~
+        TStage_imputed %in% c("T2c","T3","T3a","T3b","T3c","T4") ~
         "High_risk",
 
+      # Tx se trata como cT1-2a a efectos del EAU Risk Score
       ISUP_Grade == 1 &
         PSA_r < 10 &
-        TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a") ~
+        TStage_imputed %in% c("Tx","T1","T1b","T1c","T2","T2a") ~
         "Low-risk",
 
       (
         ISUP_Grade == 2 &
           PSA_r < 10 &
-          TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a", "T2b")
+          TStage_imputed %in% c("Tx","T1","T1b","T1c","T2","T2a","T2b")
       ) |
         (
           ISUP_Grade == 1 &
             PSA_r >= 10 & PSA_r <= 20 &
-            TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a", "T2b")
+            TStage_imputed %in% c("Tx","T1","T1b","T1c","T2","T2a","T2b")
         ) |
         (
           ISUP_Grade == 1 &
             PSA_r < 10 &
-            TStage_Diag_rec == "T2b"
+            TStage_imputed == "T2b"
         ) ~
         "Intermediate_Favourable",
 
       (
         ISUP_Grade == 2 &
           PSA_r >= 10 & PSA_r <= 20 &
-          TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a", "T2b")
+          TStage_imputed %in% c("Tx","T1","T1b","T1c","T2","T2a","T2b")
       ) |
         (
           ISUP_Grade == 3 &
-            TStage_Diag_rec %in% c("T1", "T1b", "T1c", "T2", "T2a", "T2b")
+            TStage_imputed %in% c("Tx","T1","T1b","T1c","T2","T2a","T2b")
         ) ~
         "Intermediate_Unfavourable",
 
@@ -278,10 +297,7 @@ Pr_analysis <- Pr_gwas_imputed %>%
     T_r_label = factor(
       T_r,
       levels = 1:12,
-      labels = c("T1", "T1b", "T1c",
-                 "T2", "T2a", "T2b", "T2c",
-                 "T3", "T3a", "T3b", "T3c",
-                 "T4")
+      labels = T_levels
     ),
     Smoker_r_label = factor(
       Smoker_r,
