@@ -1,7 +1,7 @@
 [project]
 name = "prostate-cox-gwas-pipeline"
 version = "0.1.0"
-description = "Pipeline for preprocessing clinical covariates and preparing Cox-GWAS analyses in prostate cancer."
+description = "Reproducible workflow for clinical data preprocessing, survival analysis, and GWAS in prostate cancer."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
