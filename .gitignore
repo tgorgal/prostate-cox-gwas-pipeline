@@ -30,6 +30,7 @@ results/
 # Archivos de datos
 *.xlsx
 *.csv
+*.tsv
 
 # (Opcional) otros formatos frecuentes
 *.xls

@@ -154,12 +154,35 @@ Pr_gwas <- Pr_model %>%
 
 
 # Imputación MICE
+# T_r se imputa con regresión logística ordinal (polr) para garantizar
+# que los valores imputados sean siempre enteros válidos dentro de 1-12,
+# ya que es una variable ordinal discreta.
+
 
 covsPr <- c(
   "Edad_r", "PSA_r", "T_r", "Gl_Score_Diag", "Smoker_r",
   "DM_r", "RA_r", "SLW_r", "HTA_r", "HC_r", "CardDis_r",
   "TUR_r", "HRR_r", "PTV1_r", "dose_fx_r", "fx_r",
   "PTV3_r", "HT_Conc"
+)
+
+# Convertir T_r a factor ordenado para que mice lo trate como ordinal
+Pr_gwas_mice <- Pr_gwas
+Pr_gwas_mice$T_r <- factor(
+  Pr_gwas_mice$T_r,
+  levels = 1:12,
+  ordered = TRUE
+)
+
+meth <- make.method(Pr_gwas_mice[, covsPr])
+meth["T_r"] <- "polr"  # regresión logística ordinal para T_r
+
+Pr_gwas_i <- mice(
+  Pr_gwas_mice[, covsPr],
+  method = meth,
+  m = 5,
+  seed = 1,
+  printFlag = FALSE
 )
 
 Pr_gwas_i <- mice(
@@ -171,6 +194,27 @@ Pr_gwas_i <- mice(
 
 Pr_gwas_imputed <- Pr_gwas
 Pr_gwas_imputed[, covsPr] <- complete(Pr_gwas_i)
+
+# Reconvertir T_r a numérico entero tras la imputación
+Pr_gwas_imputed$T_r <- as.integer(as.character(Pr_gwas_imputed$T_r))
+
+# ==========================
+# Reconstruir etiqueta de T imputado
+# (usada en EAU Risk Score en lugar de TStage_Diag_rec original)
+# ==========================
+
+T_levels <- c("T1","T1b","T1c",
+               "T2","T2a","T2b","T2c",
+               "T3","T3a","T3b","T3c",
+               "T4")
+
+Pr_gwas_imputed <- Pr_gwas_imputed %>%
+  mutate(
+    TStage_imputed = factor(T_r, levels = 1:12, labels = T_levels)
+  )
+
+
+
 
 # Dataset derivado: imputación + ISUP + EAU Risk Score
 
