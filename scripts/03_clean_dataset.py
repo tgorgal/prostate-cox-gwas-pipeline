@@ -4,6 +4,7 @@
 #    - corrige categorías mal escritas
 #    - convierte -9 en valores perdidos
 #    - convierte fechas
+#    - cambio fecha errónea
 #    - elimina filas con PSA no numérico
 #    - convierte PSA a número
 #    - calcula edad al inicio de radioterapia
@@ -287,6 +288,14 @@ df["Date_second_tumor"] = pd.Series(
 for col in date_cols:
     if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors="coerce")
+
+# ==========================
+# Corrección manual de fecha de nacimiento errónea
+# ==========================
+
+df.loc[df["Sample_ID"] == "4E008", "Born_Date"] = pd.to_datetime(
+    "23/12/1934", dayfirst=True
+)
 
 # ==========================
 # Eliminar filas con PSA_Diag no numérico
