@@ -51,7 +51,20 @@ for col in df.columns:
     add(f"{col}: empty={n_empty}, -9={n_minus9}, 0={n_zero}")
 
 # 3. Revisar columnas de fecha
-date_cols = ["Born_Date", "Date_RT_Start"]
+date_cols = [
+    "Born_Date",
+    "Diag_Date",
+    "Date_RT_Start",
+    "Date_RT_End",
+    "Last_Last_FU",
+    "Date_last_FU",
+    "Date_exitus",
+    "Biochemical_rec_date",
+    "Local_rec_date",
+    "Pelvic_rec_date",
+    "Distant_rec_date",
+    "Date_second_tumor",
+]
 
 add("\n" + "=" * 80)
 add("REVISIÓN DE FECHAS")

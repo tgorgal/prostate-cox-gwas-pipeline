@@ -10,6 +10,7 @@
 #    - calcula edad al inicio de radioterapia
 #    - limpia variables de seguimiento y eventos
 #    - detecta categorías poco frecuentes
+#    - corrige Last_Last_FU respecto a otras fechas de seguimiento
 #    - guarda el dataset limpio y los avisos.
 
 import re
@@ -29,7 +30,9 @@ df = pd.read_excel(INPUT_FILE, dtype=object)
 id_cols = ["ID", "Sample_ID", "NHC"]
 date_cols = [
     "Born_Date",
+    "Diag_Date",
     "Date_RT_Start",
+    "Date_RT_End",
     "Last_Last_FU",
     "Date_last_FU",
     "Date_exitus",
@@ -240,8 +243,18 @@ df["Born_Date"] = pd.Series(
     index=df.index,
 )
 
+df["Diag_Date"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Diag_Date"]],
+    index=df.index,
+)
+
 df["Date_RT_Start"] = pd.Series(
     [convert_excel_serial_date(x) for x in df["Date_RT_Start"]],
+    index=df.index,
+)
+
+df["Date_RT_End"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Date_RT_End"]],
     index=df.index,
 )
 
@@ -288,6 +301,101 @@ df["Date_second_tumor"] = pd.Series(
 for col in date_cols:
     if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors="coerce")
+
+# ==========================
+# Corrección de Last_Last_FU respecto a otras fechas de seguimiento
+# ==========================
+
+other_fu_cols = [
+    "Diag_Date",
+    "Date_RT_Start",
+    "Date_RT_End",
+    "Date_last_FU",
+    "Biochemical_rec_date",
+    "Local_rec_date",
+    "Pelvic_rec_date",
+    "Distant_rec_date",
+    "Date_second_tumor",
+]
+other_fu_cols = [c for c in other_fu_cols if c in df.columns]
+
+max_others = df[other_fu_cols].max(axis=1, skipna=True)
+
+exitus_conflict_rows = []
+last_fu_correction_rows = []
+
+new_last_last_fu = df["Last_Last_FU"].copy()
+
+for idx in df.index:
+    exitus = df.at[idx, "Date_exitus"]
+    lfu = df.at[idx, "Last_Last_FU"]
+    mx = max_others.at[idx]
+
+    exitus_has_conflict = False
+
+    # --- Chequeo de exitus: nunca se corrige automáticamente ---
+    if pd.notna(exitus):
+        if (pd.notna(mx) and exitus < mx) or (pd.notna(lfu) and exitus < lfu):
+            exitus_has_conflict = True
+            exitus_conflict_rows.append(
+                {
+                    "ID": df.at[idx, "ID"],
+                    "Sample_ID": df.at[idx, "Sample_ID"],
+                    "NHC": df.at[idx, "NHC"],
+                    "Date_exitus": exitus,
+                    "Last_Last_FU": lfu,
+                    "max_other_dates": mx,
+                }
+            )
+
+    # --- Corrección de Last_Last_FU, solo si no hay conflicto de exitus ---
+    if not exitus_has_conflict:
+        if pd.isna(lfu):
+            new_value = (
+                mx if pd.isna(exitus) else (exitus if pd.isna(mx) else max(mx, exitus))
+            )
+            if pd.notna(new_value):
+                new_last_last_fu.at[idx] = new_value
+                last_fu_correction_rows.append(
+                    {
+                        "ID": df.at[idx, "ID"],
+                        "Sample_ID": df.at[idx, "Sample_ID"],
+                        "NHC": df.at[idx, "NHC"],
+                        "old_Last_Last_FU": pd.NA,
+                        "new_Last_Last_FU": new_value,
+                        "reason": "Last_Last_FU vacío, rellenado con la fecha más reciente disponible",
+                    }
+                )
+        elif pd.notna(mx) and lfu < mx:
+            new_last_last_fu.at[idx] = mx
+            last_fu_correction_rows.append(
+                {
+                    "ID": df.at[idx, "ID"],
+                    "Sample_ID": df.at[idx, "Sample_ID"],
+                    "NHC": df.at[idx, "NHC"],
+                    "old_Last_Last_FU": lfu,
+                    "new_Last_Last_FU": mx,
+                    "reason": "Last_Last_FU anterior a otra fecha de seguimiento",
+                }
+            )
+        elif pd.notna(exitus) and lfu > exitus:
+            new_last_last_fu.at[idx] = exitus
+            last_fu_correction_rows.append(
+                {
+                    "ID": df.at[idx, "ID"],
+                    "Sample_ID": df.at[idx, "Sample_ID"],
+                    "NHC": df.at[idx, "NHC"],
+                    "old_Last_Last_FU": lfu,
+                    "new_Last_Last_FU": exitus,
+                    "reason": "Last_Last_FU posterior a la fecha de éxitus, recortado",
+                }
+            )
+
+df["Last_Last_FU"] = new_last_last_fu
+
+warnings["exitus_date_conflict"] = pd.DataFrame(exitus_conflict_rows)
+warnings["last_last_fu_corrections"] = pd.DataFrame(last_fu_correction_rows)
+
 
 # ==========================
 # Corrección manual de fecha de nacimiento errónea

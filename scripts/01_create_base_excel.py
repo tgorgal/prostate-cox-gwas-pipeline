@@ -41,6 +41,7 @@ patients_cols = [
 tx_cols = [
     "Sample_ID",
     "Date_RT_Start",
+    "Date_RT_End",
     "PTV1_Dose",
     "Dose_fract",
     "N_Doses",
@@ -50,6 +51,7 @@ tx_cols = [
 
 clinical_cols = [
     "Sample_ID",
+    "Diag_Date",
     "PSA_Diag",
     "TStage_Diag_rec",
     "Gl_FG_Diag",
@@ -93,7 +95,9 @@ final_cols = [
     "Sample_ID",
     "NHC",
     "Born_Date",
+    "Diag_Date",
     "Date_RT_Start",
+    "Date_RT_End",
     "PSA_Diag",
     "TStage_Diag_rec",
     "Gl_FG_Diag",
@@ -132,10 +136,16 @@ df = df[final_cols]
 
 date_cols = [
     "Born_Date",
+    "Diag_Date",
     "Date_RT_Start",
+    "Date_RT_End",
     "Last_Last_FU",
     "Date_last_FU",
     "Date_exitus",
+    "Biochemical_rec_date",
+    "Local_rec_date",
+    "Pelvic_rec_date",
+    "Distant_rec_date",
     "Date_second_tumor",
 ]
 
