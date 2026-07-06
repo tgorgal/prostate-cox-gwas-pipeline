@@ -187,6 +187,7 @@ Required packages:
 - glmnet
 - survival
 - writexl
+- openxlsx
 
 ---
 

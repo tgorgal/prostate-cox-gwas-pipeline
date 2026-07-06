@@ -3,7 +3,7 @@
 library(readxl)
 library(dplyr)
 library(lubridate)
-library(writexl)
+library(openxlsx)
 
 input_file <- "results/04_model_dataset.xlsx"
 output_file <- "results/06_survival_dataset.xlsx"
@@ -102,10 +102,39 @@ Pr_surv <- Pr %>%
     Distant_time_months = Distant_time_days / 30.44
   )
 
-write_xlsx(
-  list(survival_dataset = Pr_surv),
-  output_file
+# ==========================
+# Exportar con formato de fecha dd/mm/yyyy
+# ==========================
+
+date_cols <- c(
+  "Date_RT_Start",
+  "Date_last_FU",
+  "Date_exitus",
+  "Biochemical_rec_date",
+  "Local_rec_date",
+  "Pelvic_rec_date",
+  "Distant_rec_date"
 )
+
+wb <- createWorkbook()
+addWorksheet(wb, "survival_dataset")
+writeData(wb, "survival_dataset", Pr_surv)
+
+date_style <- createStyle(numFmt = "dd/mm/yyyy")
+
+for (col_name in date_cols) {
+  col_idx <- which(names(Pr_surv) == col_name)
+  addStyle(
+    wb,
+    sheet = "survival_dataset",
+    style = date_style,
+    rows = 2:(nrow(Pr_surv) + 1),
+    cols = col_idx,
+    gridExpand = TRUE
+  )
+}
+
+saveWorkbook(wb, output_file, overwrite = TRUE)
 
 cat("Archivo creado:\n")
 cat(output_file, "\n")
