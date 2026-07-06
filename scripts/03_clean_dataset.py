@@ -335,7 +335,7 @@ for idx in df.index:
 
     # --- Chequeo de exitus: nunca se corrige automáticamente ---
     if pd.notna(exitus):
-        if (pd.notna(mx) and exitus < mx) or (pd.notna(lfu) and exitus < lfu):
+        if (pd.notna(mx) and exitus < mx) or (pd.notna(lfu) and exitus < lfu):  # type: ignore
             exitus_has_conflict = True
             exitus_conflict_rows.append(
                 {
@@ -352,7 +352,7 @@ for idx in df.index:
     if not exitus_has_conflict:
         if pd.isna(lfu):
             new_value = (
-                mx if pd.isna(exitus) else (exitus if pd.isna(mx) else max(mx, exitus))
+                mx if pd.isna(exitus) else (exitus if pd.isna(mx) else max(mx, exitus))  # type: ignore
             )
             if pd.notna(new_value):
                 new_last_last_fu.at[idx] = new_value
@@ -366,7 +366,7 @@ for idx in df.index:
                         "reason": "Last_Last_FU vacío, rellenado con la fecha más reciente disponible",
                     }
                 )
-        elif pd.notna(mx) and lfu < mx:
+        elif pd.notna(mx) and lfu < mx:  # type: ignore
             new_last_last_fu.at[idx] = mx
             last_fu_correction_rows.append(
                 {
@@ -378,7 +378,7 @@ for idx in df.index:
                     "reason": "Last_Last_FU anterior a otra fecha de seguimiento",
                 }
             )
-        elif pd.notna(exitus) and lfu > exitus:
+        elif pd.notna(exitus) and lfu > exitus:  # type: ignore
             new_last_last_fu.at[idx] = exitus
             last_fu_correction_rows.append(
                 {
