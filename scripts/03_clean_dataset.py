@@ -13,6 +13,7 @@
 #    - corrige Last_Last_FU respecto a otras fechas de seguimiento
 #    - guarda el dataset limpio y los avisos.
 
+import datetime as dt
 import re
 from pathlib import Path
 
@@ -208,6 +209,28 @@ for col in date_cols:
             mask_serial, ["ID", "Sample_ID", "NHC", col]
         ]
 
+# Fechas centinela: -9 mal interpretado como fecha real de Excel
+# (si la celda tenía formato de fecha en el Excel original, un -9 se lee
+# directamente como Timestamp('1899-12-21') en vez de como el texto/número -9,
+# y por tanto se escapa de las comprobaciones habituales de -9)
+EXCEL_EPOCH_SENTINEL = pd.Timestamp("1899-12-21")
+
+for col in date_cols:
+    if col in df.columns:
+        mask_sentinel = df[col].apply(
+            lambda x: (
+                isinstance(x, (pd.Timestamp, dt.datetime))
+                and pd.Timestamp(x).normalize() == EXCEL_EPOCH_SENTINEL
+            )
+        )
+
+        if mask_sentinel.any():
+            warnings[f"{col}_excel_epoch_sentinel"] = df.loc[
+                mask_sentinel, ["ID", "Sample_ID", "NHC", col]
+            ].copy()
+
+            df.loc[mask_sentinel, col] = pd.NA
+
 # Date_second_tumor con varias fechas
 if "Date_second_tumor" in df.columns:
     s = df["Date_second_tumor"].astype(str).str.strip()
@@ -227,7 +250,7 @@ non_date_non_id_cols = [
     c for c in df.columns if c not in id_cols and c not in date_cols
 ]
 
-for col in non_date_non_id_cols:
+for col in non_date_nLast - FU_Late2on_id_cols:
     df[col] = df[col].replace(["", " ", "nan", "NaN"], -9)
     df[col] = df[col].fillna(-9)
 
