@@ -14,12 +14,18 @@ patients = pd.read_excel(INPUT_FILE, sheet_name="Patients")
 tx = pd.read_excel(INPUT_FILE, sheet_name="Tx")
 clinical = pd.read_excel(INPUT_FILE, sheet_name="Clinical")
 status = pd.read_excel(INPUT_FILE, sheet_name="Status-FU")
+late = pd.read_excel(INPUT_FILE, sheet_name="Late")
+late2 = pd.read_excel(INPUT_FILE, sheet_name="Late2")
+psa_sheet = pd.read_excel(INPUT_FILE, sheet_name="PSA")
 
 # Normalizar nombre Id -> ID para la salida
 patients = patients.rename(columns={"Id": "ID"})
 tx = tx.rename(columns={"Id": "ID"})
 clinical = clinical.rename(columns={"Id": "ID"})
 status = status.rename(columns={"Id": "ID"})
+late = late.rename(columns={"Id": "ID"})
+late2 = late2.rename(columns={"Id": "ID"})
+psa_sheet = psa_sheet.rename(columns={"Id": "ID"})
 
 # Selección de columnas
 patients_cols = [
@@ -42,6 +48,7 @@ tx_cols = [
     "Sample_ID",
     "Date_RT_Start",
     "Date_RT_End",
+    "Date_HT",
     "PTV1_Dose",
     "Dose_fract",
     "N_Doses",
@@ -83,11 +90,23 @@ tx_sub = tx[tx_cols].copy()
 clinical_sub = clinical[clinical_cols].copy()
 status_sub = status[status_cols].copy()
 
+late_cols = ["ID", "NHC", "Last-FU"]
+late2_cols = ["ID", "NHC", "Last-FU_Late2"]
+psa_cols = ["ID", "NHC", "Last_PSA"]
+
+# Renombramos
+late_sub = late[late_cols].rename(columns={"Last-FU": "Last_FU_Late"}).copy()
+late2_sub = late2[late2_cols].rename(columns={"Last-FU_Late2": "Last_FU_Late2"}).copy()
+psa_sub = psa_sheet[psa_cols].rename(columns={"Last_PSA": "Last_PSA_date"}).copy()
+
 
 # Merge usando Sample_ID como clave
 df = patients_sub.merge(tx_sub, on="Sample_ID", how="left")
 df = df.merge(clinical_sub, on="Sample_ID", how="left")
 df = df.merge(status_sub, on=["ID", "NHC"], how="left")
+df = df.merge(late_sub, on=["ID", "NHC"], how="left")
+df = df.merge(late2_sub, on=["ID", "NHC"], how="left")
+df = df.merge(psa_sub, on=["ID", "NHC"], how="left")
 
 # Orden final de columnas
 final_cols = [
@@ -98,6 +117,7 @@ final_cols = [
     "Diag_Date",
     "Date_RT_Start",
     "Date_RT_End",
+    "Date_HT",
     "PSA_Diag",
     "TStage_Diag_rec",
     "Gl_FG_Diag",
@@ -130,6 +150,9 @@ final_cols = [
     "Distant_rec",
     "Distant_rec_date",
     "Date_second_tumor",
+    "Last_FU_Late",
+    "Last_FU_Late2",
+    "Last_PSA_date",
 ]
 
 df = df[final_cols]
@@ -139,6 +162,7 @@ date_cols = [
     "Diag_Date",
     "Date_RT_Start",
     "Date_RT_End",
+    "Date_HT",
     "Last_Last_FU",
     "Date_last_FU",
     "Date_exitus",
@@ -147,6 +171,9 @@ date_cols = [
     "Pelvic_rec_date",
     "Distant_rec_date",
     "Date_second_tumor",
+    "Last_FU_Late",
+    "Last_FU_Late2",
+    "Last_PSA_date",
 ]
 
 with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:

@@ -1,9 +1,9 @@
 # Selección de covariables para modelos multivariantes
- 1. Filtro variables (<10%)
- 2. Cox univariante  (p < 0.05)
- 3. StepAIC  (bidireccional)
- 4. LASSO  (penalización)
- 5. Unión + variables forzadas
+# 1. Filtro variables (<10%)
+# 2. Cox univariante  (p < 0.05)
+# 3. StepAIC  (bidireccional)
+# 4. LASSO  (penalización)
+# 5. Unión + variables forzadas
 
 library(readxl)
 library(dplyr)
@@ -75,8 +75,6 @@ for (outcome_name in names(outcomes)) {
     x <- x[!is.na(x)]
 
     tab <- table(x)
-esults %>%
-    filter(p_value < 0.05) %>%
     if (length(tab) == 2) {
       minor_category <- names(tab)[which.min(tab)]
       minor_n <- min(tab)

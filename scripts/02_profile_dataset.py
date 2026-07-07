@@ -56,6 +56,7 @@ date_cols = [
     "Diag_Date",
     "Date_RT_Start",
     "Date_RT_End",
+    "Date_HT",
     "Last_Last_FU",
     "Date_last_FU",
     "Date_exitus",
@@ -64,6 +65,9 @@ date_cols = [
     "Pelvic_rec_date",
     "Distant_rec_date",
     "Date_second_tumor",
+    "Last_FU_Late",
+    "Last_FU_Late2",
+    "Last_PSA_date",
 ]
 
 add("\n" + "=" * 80)

@@ -33,6 +33,7 @@ date_cols = [
     "Diag_Date",
     "Date_RT_Start",
     "Date_RT_End",
+    "Date_HT",
     "Last_Last_FU",
     "Date_last_FU",
     "Date_exitus",
@@ -41,6 +42,9 @@ date_cols = [
     "Pelvic_rec_date",
     "Distant_rec_date",
     "Date_second_tumor",
+    "Last_FU_Late",
+    "Last_FU_Late2",
+    "Last_PSA_date",
 ]
 
 # ==========================
@@ -258,6 +262,11 @@ df["Date_RT_End"] = pd.Series(
     index=df.index,
 )
 
+df["Date_HT"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Date_HT"]],
+    index=df.index,
+)
+
 df["Last_Last_FU"] = pd.Series(
     [convert_excel_serial_date(x) for x in df["Last_Last_FU"]],
     index=df.index,
@@ -298,6 +307,21 @@ df["Date_second_tumor"] = pd.Series(
     index=df.index,
 )
 
+df["Last_FU_Late"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Last_FU_Late"]],
+    index=df.index,
+)
+
+df["Last_FU_Late2"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Last_FU_Late2"]],
+    index=df.index,
+)
+
+df["Last_PSA_date"] = pd.Series(
+    [convert_excel_serial_date(x) for x in df["Last_PSA_date"]],
+    index=df.index,
+)
+
 for col in date_cols:
     if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors="coerce")
@@ -310,12 +334,16 @@ other_fu_cols = [
     "Diag_Date",
     "Date_RT_Start",
     "Date_RT_End",
+    "Date_HT",
     "Date_last_FU",
     "Biochemical_rec_date",
     "Local_rec_date",
     "Pelvic_rec_date",
     "Distant_rec_date",
     "Date_second_tumor",
+    "Last_FU_Late",
+    "Last_FU_Late2",
+    "Last_PSA_date",
 ]
 other_fu_cols = [c for c in other_fu_cols if c in df.columns]
 
