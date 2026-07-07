@@ -291,13 +291,35 @@ Pr_analysis <- Pr_gwas_imputed %>%
         "Intermediate_Unfavourable",
 
       TRUE ~ NA_character_
+    ),
+
+    EAU_Extent = case_when(
+      TStage_imputed %in% c(
+        "Tx", "T1", "T1b", "T1c",
+        "T2", "T2a", "T2b", "T2c"
+      ) ~ "Localised",
+
+      TStage_imputed %in% c("T3", "T3a", "T3b", "T3c", "T4") ~
+        "Locally_advanced",
+
+      TRUE ~ NA_character_
+    ),
+
+    EAU_Risk_Group = case_when(
+      EAU_Risk_Score == "Low-risk" ~ "Low-risk",
+      EAU_Risk_Score %in% c(
+        "Intermediate_Favourable",
+        "Intermediate_Unfavourable"
+      ) ~ "Intermediate-risk",
+      EAU_Risk_Score == "High_risk" ~ "High-risk",
+      TRUE ~ NA_character_
     )
   ) %>%
   mutate(
     T_r_label = factor(
       T_r,
-      levels = 1:12,
-      labels = T_levels
+      levels = c(0L, 1:12),
+      labels = c("Tx", T_levels)
     ),
     Smoker_r_label = factor(
       Smoker_r,

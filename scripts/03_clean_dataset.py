@@ -250,7 +250,7 @@ non_date_non_id_cols = [
     c for c in df.columns if c not in id_cols and c not in date_cols
 ]
 
-for col in non_date_nLast - FU_Late2on_id_cols:
+for col in non_date_non_id_cols:
     df[col] = df[col].replace(["", " ", "nan", "NaN"], -9)
     df[col] = df[col].fillna(-9)
 
