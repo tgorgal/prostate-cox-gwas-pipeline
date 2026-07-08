@@ -28,10 +28,18 @@ dfs = {sheet: pd.read_excel(EXCEL_FILE, sheet_name=sheet) for sheet in SHEETS}
 
 
 def normalize(value):
-    """Convierte cualquier valor a string de forma segura, incluso si es NaN o float."""
+    """Convierte cualquier valor a string de forma segura, comparando
+    numéricamente cuando el valor es numérico (para evitar falsos positivos
+    tipo 2323202 vs 2323202.0)."""
     if pd.isna(value):
         return "nan"
-    return str(value).strip().lower()
+    try:
+        f = float(value)
+        if f.is_integer():
+            return str(int(f))
+        return str(f)
+    except (ValueError, TypeError):
+        return str(value).strip().lower()
 
 
 print("=" * 70)
