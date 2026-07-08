@@ -23,6 +23,7 @@ continuous_vars <- c(
 
 categorical_vars <- c(
   "TStage_Diag_rec",
+  "NStage_Diag",
   "T_r_label",
   "ISUP_Grade",
   "EAU_Risk_Score",

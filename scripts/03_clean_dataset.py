@@ -126,6 +126,8 @@ df["Smoker"] = df["Smoker"].replace(
 
 df["TStage_Diag_rec"] = df["TStage_Diag_rec"].replace({"T1C": "T1c"})
 
+df["NStage_Diag"] = df["NStage_Diag"].replace({"N0 ": "N0"})
+
 df["Vital_status"] = df["Vital_status"].replace({"unknown": -9})
 
 df["Date_exitus"] = df["Date_exitus"].replace({"unknown": -9, "": -9, " ": -9})
@@ -489,6 +491,7 @@ df = df[cols]
 
 categorical_cols = [
     "TStage_Diag_rec",
+    "NStage_Diag",
     "Gl_Score_Diag",
     "Smoker",
     "DM",

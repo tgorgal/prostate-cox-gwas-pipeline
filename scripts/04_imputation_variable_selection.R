@@ -70,6 +70,7 @@ Pr_model <- Pr %>%
                                 "T2","T2a","T2b","T2c",
                                 "T3","T3a","T3b","T3c",
                                 "T4")),
+    NStage_Diag = factor(NStage_Diag, levels = c("N0", "N1", "N2", "Nx"))
     Smoker_r = factor(Smoker_r, levels = c("no", "ex-smoker", "yes")),
 
     DM_r = factor(DM, levels = c("no", "yes")),
@@ -124,6 +125,7 @@ Pr_gwas <- Pr_model %>%
     Date_second_tumor = Date_second_tumor,
 
     TStage_Diag_rec = TStage_Diag_rec,
+    NStage_Diag = NStage_Diag,
 
     Edad_r = as.numeric(Edad_r),
     PSA_r = as.numeric(PSA_r),
@@ -294,16 +296,18 @@ Pr_analysis <- Pr_gwas_imputed %>%
     ),
 
     EAU_Extent = case_when(
-      TStage_imputed %in% c(
-        "Tx", "T1", "T1b", "T1c",
-        "T2", "T2a", "T2b", "T2c"
-      ) ~ "Localised",
+  NStage_Diag %in% c("N1", "N2") ~ "Locally_advanced",
 
-      TStage_imputed %in% c("T3", "T3a", "T3b", "T3c", "T4") ~
-        "Locally_advanced",
+  TStage_imputed %in% c("T3", "T3a", "T3b", "T3c", "T4") ~
+    "Locally_advanced",
 
-      TRUE ~ NA_character_
-    ),
+  TStage_imputed %in% c(
+    "Tx", "T1", "T1b", "T1c",
+    "T2", "T2a", "T2b", "T2c"
+  ) ~ "Localised",
+
+  TRUE ~ NA_character_
+),
 
     EAU_Risk_Group = case_when(
       EAU_Risk_Score == "Low-risk" ~ "Low-risk",
