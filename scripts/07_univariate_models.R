@@ -1,5 +1,4 @@
 # Modelos univariantes de supervivencia
-
 library(readxl)
 library(dplyr)
 library(survival)
@@ -11,10 +10,18 @@ output_file <- "results/07_univariate_models.xlsx"
 
 Pr <- read_excel(input_file, sheet = "survival_dataset")
 
+# Reimponer el orden de niveles de TStage_imputed
+# (se pierde al pasar por Excel entre el script 04 y este)
+T_levels_full <- c("Tx","T1","T1b","T1c","T2","T2a","T2b","T2c",
+                    "T3","T3a","T3b","T3c","T4")
+
+Pr <- Pr %>%
+  mutate(TStage_imputed = factor(TStage_imputed, levels = T_levels_full))
+
 covariates <- c(
   "Edad_r",
   "PSA_r",
-  "T_r",
+  "TStage_imputed",
   "Gl_Score_Diag",
   "ISUP_Grade",
   "EAU_Risk_Score",
@@ -41,7 +48,6 @@ run_univariate_cox <- function(data, time_col, event_col, covariates, outcome_na
     formula <- as.formula(
       paste0("Surv(", time_col, ", ", event_col, ") ~ ", var)
     )
-
     warning_message <- NA_character_
 
     model <- tryCatch(
@@ -59,36 +65,49 @@ run_univariate_cox <- function(data, time_col, event_col, covariates, outcome_na
     )
 
     if (!is.null(model)) {
+      # --- N total y eventos ---
+      n_total  <- model$n
+      n_events <- model$nevent
 
-     # --- N total y eventos ---
-     n_total  <- model$n
-     n_events <- model$nevent
+      # --- N por categoría (solo para factores/caracteres) ---
+      # calculado sobre las filas realmente usadas por el modelo,
+      # para que sea consistente con n_total/n_events
+      if (is.factor(data[[var]]) || is.character(data[[var]])) {
+        complete_data <- data %>%
+          filter(
+            !is.na(.data[[time_col]]),
+            !is.na(.data[[event_col]]),
+            !is.na(.data[[var]])
+          )
+        n_by_level <- table(complete_data[[var]], useNA = "no")
+        n_detail <- paste(
+          paste0(names(n_by_level), ": ", as.integer(n_by_level)),
+          collapse = " | "
+        )
+      } else {
+        n_detail <- NA_character_  # continua: no aplica desglose
+      }
 
-     # --- N por categoría (solo para factores/caracteres) ---
-     if (is.factor(data[[var]]) || is.character(data[[var]])) {
-       n_by_level <- table(data[[var]], useNA = "no")
-       n_detail   <- paste(
-         paste0(names(n_by_level), ": ", as.integer(n_by_level)),
-         collapse = " | "
-       )
-     } else {
-       n_detail <- NA_character_  # continua: no aplica desglose
-     }
+      # p-valor a nivel de variable (LR test), único por variable,
+      # independiente del número de niveles/categorías
+      lr_table <- anova(model)
+      p_value_variable <- lr_table[["Pr(>|Chi|)"]][nrow(lr_table)]
 
       results[[var]] <- tidy(model, exponentiate = TRUE, conf.int = TRUE) %>%
         mutate(
-          outcome  = outcome_name,
-          variable = var,
-          HR       = estimate,
-          CI95     = paste0(round(conf.low, 3), " - ", round(conf.high, 3)),
-          p_value  = p.value,
-          significant = if_else(p.value < 0.05, "Yes", "No"),
-          N           = n_total,
-          N_events    = n_events,
-          N_by_level  = n_detail     # NA para continuas, "0: 123 | 1: 45" para categóricas
+          outcome       = outcome_name,
+          variable      = var,
+          HR            = estimate,
+          CI95          = paste0(round(conf.low, 3), " - ", round(conf.high, 3)),
+          p_value_level = p.value,           # Wald, por nivel/coeficiente
+          p_value       = p_value_variable,  # LR, a nivel de variable
+          significant   = if_else(p_value < 0.05, "Yes", "No"),
+          N             = n_total,
+          N_events      = n_events,
+          N_by_level    = n_detail
         ) %>%
         dplyr::select(outcome, variable, N, N_events, N_by_level,
-                      HR, CI95, p_value, significant)
+                       HR, CI95, p_value_level, p_value, significant)
     }
 
     if (!is.na(warning_message)) {
@@ -100,10 +119,16 @@ run_univariate_cox <- function(data, time_col, event_col, covariates, outcome_na
     }
   }
 
-  # Añadir FDR sobre todos los p-valores del outcome de una vez
-  results_df <- bind_rows(results) %>%
-    mutate(p_value_FDR = p.adjust(p_value, method = "BH"),
-           significant_FDR = if_else(p_value_FDR < 0.05, "Yes", "No"))
+  results_df <- bind_rows(results)
+
+  # FDR calculado una vez por variable (no una vez por nivel/categoría)
+  variable_pvals <- results_df %>%
+    distinct(variable, p_value) %>%
+    mutate(p_value_FDR = p.adjust(p_value, method = "BH"))
+
+  results_df <- results_df %>%
+    left_join(variable_pvals, by = c("variable", "p_value")) %>%
+    mutate(significant_FDR = if_else(p_value_FDR < 0.05, "Yes", "No"))
 
   list(
     results  = results_df,
@@ -116,7 +141,6 @@ bcr     <- run_univariate_cox(Pr, "BCR_time_months",     "BCR_event",     covari
 local   <- run_univariate_cox(Pr, "Local_time_months",   "Local_event",   covariates, "Local")
 pelvic  <- run_univariate_cox(Pr, "Pelvic_time_months",  "Pelvic_event",  covariates, "Pelvic")
 distant <- run_univariate_cox(Pr, "Distant_time_months", "Distant_event", covariates, "Distant")
-
 
 write_xlsx(
   list(
