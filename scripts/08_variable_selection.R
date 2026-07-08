@@ -1,8 +1,8 @@
 # Selección de covariables para modelos multivariantes
-# 1. Filtro variables (<10%)
-# 2. Cox univariante  (p < 0.05)
-# 3. StepAIC  (bidireccional)
-# 4. LASSO  (penalización)
+# 1. Filtro de categorías poco frecuentes (<10%, binarias y multinivel)
+# 2. Cox univariante (LR test, FDR por variable)
+# 3. StepAIC (bidireccional)
+# 4. LASSO (penalización)
 # 5. Unión + variables forzadas
 
 library(readxl)
@@ -18,6 +18,14 @@ output_file <- "results/08_variable_selection.xlsx"
 
 Pr <- read_excel(input_file, sheet = "survival_dataset")
 
+# Reimponer el orden de niveles de TStage_imputed
+# (se pierde al pasar por Excel)
+T_levels_full <- c("Tx","T1","T1b","T1c","T2","T2a","T2b","T2c",
+                    "T3","T3a","T3b","T3c","T4")
+
+Pr <- Pr %>%
+  mutate(TStage_imputed = factor(TStage_imputed, levels = T_levels_full))
+
 outcomes <- list(
   OS = c("OS_time_months", "OS_event"),
   BCR = c("BCR_time_months", "BCR_event"),
@@ -26,26 +34,36 @@ outcomes <- list(
   Distant = c("Distant_time_months", "Distant_event")
 )
 
+# ==========================
+# Conjunto de covariables candidatas
+# (PSA_r, ISUP_Grade y TStage_imputed compiten libremente frente a
+# EAU_Risk_Score, que ya los combina; no se fuerzan ambos a la vez)
+# ==========================
+
 candidate_covariates <- c(
-  "Edad_r", "PSA_r", "T_r_label", "Gl_Score_Diag",
-  "ISUP_Grade", "EAU_Risk_Score", "Smoker_r_label",
-  "DM_r_label", "RA_r_label", "HTA_r_label", "HC_r_label",
-  "CardDis_r_label", "TUR_r_label", "HRR_r_label",
+  "Edad_r", "PSA_r", "TStage_imputed", "ISUP_Grade", "EAU_Risk_Score",
+  "Smoker_r_label", "DM_r_label", "RA_r_label", "HTA_r_label",
+  "HC_r_label", "CardDis_r_label", "TUR_r_label", "HRR_r_label",
   "PTV1_r", "dose_fx_r", "fx_r", "PTV3_r", "HT_Conc_label"
 )
 
-forced_covariates <- c(
-  "Edad_r", "PSA_r", "ISUP_Grade", "EAU_Risk_Score"  # Podemos quitar ISUP
-)
+# Opción B: se fuerza el score compuesto (EAU_Risk_Score), que ya
+# incorpora el efecto de PSA/ISUP/T agrupados por relevancia clínica;
+# sus componentes individuales quedan libres para competir en la
+# selección (univariante/stepAIC/LASSO) por si aportan señal adicional.
+forced_covariates <- c("Edad_r", "EAU_Risk_Score")
 
 categorical_covariates <- c(
-  "T_r_label", "ISUP_Grade", "EAU_Risk_Score", "Smoker_r_label",
+  "TStage_imputed", "ISUP_Grade", "EAU_Risk_Score", "Smoker_r_label",
   "DM_r_label", "RA_r_label", "HTA_r_label", "HC_r_label",
   "CardDis_r_label", "TUR_r_label", "HRR_r_label", "HT_Conc_label"
 )
 
 Pr <- Pr %>%
-  mutate(across(any_of(categorical_covariates), as.factor))
+  mutate(across(
+    any_of(setdiff(categorical_covariates, "TStage_imputed")),
+    as.factor
+  ))
 
 binary_filter_all <- list()
 univariate_all <- list()
@@ -65,7 +83,8 @@ for (outcome_name in names(outcomes)) {
   ]
 
   # ==========================
-  # 1. Filtro de variables binarias poco frecuentes
+  # 1. Filtro de categorías poco frecuentes
+  # (cubre binarias y multinivel: cualquier categoría <10%)
   # ==========================
 
   binary_filter <- list()
@@ -74,32 +93,48 @@ for (outcome_name in names(outcomes)) {
     x <- data_outcome[[var]]
     x <- x[!is.na(x)]
 
-    tab <- table(x)
-    if (length(tab) == 2) {
-      minor_category <- names(tab)[which.min(tab)]
-      minor_n <- min(tab)
-      total_n <- sum(tab)
-      minor_percent <- as.numeric(minor_n / total_n * 100)
+    if (!(is.factor(x) || is.character(x))) next  # solo aplica a categóricas
 
-      if (
-        minor_percent < 10 &&
-          !minor_category %in% c("", "empty", "NA", "<NA>")
-      ) {
-        binary_filter[[var]] <- data.frame(
-          outcome = outcome_name,
-          variable = var,
-          minor_category = minor_category,
-          minor_n = as.integer(minor_n),
-          total_n = as.integer(total_n)      │,
-          minor_percent = round(minor_percent, 2),
-          reason = "Binary variable with minor category <10%"
-        )
-      }
+    tab <- table(x)
+
+    if (length(tab) < 2) next  # sin variabilidad, se filtra más abajo
+
+    total_n <- sum(tab)
+    percents <- as.numeric(tab / total_n * 100)
+    rare_levels <- names(tab)[percents < 10]
+
+    if (length(rare_levels) > 0) {
+      binary_filter[[var]] <- data.frame(
+        outcome = outcome_name,
+        variable = var,
+        rare_category = rare_levels,
+        rare_n = as.integer(tab[rare_levels]),
+        total_n = as.integer(total_n),
+        rare_percent = round(percents[percents < 10], 2),
+        reason = "Category with frequency <10%"
+      )
     }
   }
 
   binary_filter <- bind_rows(binary_filter)
-  excluded_vars <- binary_filter$variable
+  excluded_vars <- unique(binary_filter$variable)
+
+  # --- Aviso en consola de categorías raras detectadas ---
+  if (nrow(binary_filter) > 0) {
+    cat("\n⚠️  [", outcome_name, "] Categorías con frecuencia <10% (variable excluida):\n", sep = "")
+    for (i in seq_len(nrow(binary_filter))) {
+      cat(
+        "   -", binary_filter$variable[i],
+        "| categoría:", binary_filter$rare_category[i],
+        "| n =", binary_filter$rare_n[i],
+        "/", binary_filter$total_n[i],
+        paste0("(", binary_filter$rare_percent[i], "%)"),
+        "\n"
+      )
+    }
+  } else {
+    cat("\n✅ [", outcome_name, "] Sin categorías por debajo del 10% en las candidatas.\n", sep = "")
+  }
 
   vars_eligible <- setdiff(vars_available, excluded_vars)
 
@@ -110,7 +145,7 @@ for (outcome_name in names(outcomes)) {
   ]
 
   # ==========================
-  # 2. Cox univariante
+  # 2. Cox univariante (LR test, p-valor por variable + FDR)
   # ==========================
 
   univariate_results <- list()
@@ -126,6 +161,9 @@ for (outcome_name in names(outcomes)) {
     )
 
     if (!is.null(model_uni)) {
+      lr_table <- anova(model_uni)
+      p_value_variable <- lr_table[["Pr(>|Chi|)"]][nrow(lr_table)]
+
       univariate_results[[var]] <- tidy(
         model_uni,
         exponentiate = TRUE,
@@ -136,8 +174,8 @@ for (outcome_name in names(outcomes)) {
           variable = var,
           HR = estimate,
           CI95 = paste0(round(conf.low, 3), " - ", round(conf.high, 3)),
-          p_value = p.value,
-          significant = if_else(p.value < 0.05, "Yes", "No"),
+          p_value_level = p.value,        # Wald, por nivel (referencia)
+          p_value = p_value_variable,     # LR, por variable
           .before = 1
         )
     }
@@ -145,8 +183,22 @@ for (outcome_name in names(outcomes)) {
 
   univariate_results <- bind_rows(univariate_results)
 
+  # FDR calculado una vez por variable (no una vez por nivel)
+  if (nrow(univariate_results) > 0) {
+    variable_pvals <- univariate_results %>%
+      distinct(variable, p_value) %>%
+      mutate(p_value_FDR = p.adjust(p_value, method = "BH"))
+
+    univariate_results <- univariate_results %>%
+      left_join(variable_pvals, by = c("variable", "p_value")) %>%
+      mutate(significant_FDR = if_else(p_value_FDR < 0.05, "Yes", "No"))
+  } else {
+    univariate_results <- univariate_results %>%
+      mutate(p_value_FDR = numeric(0), significant_FDR = character(0))
+  }
+
   univariate_selected <- univariate_results %>%
-    filter(p_value < 0.05) %>%  # Cambiar P adjusted
+    filter(p_value_FDR < 0.05) %>%
     pull(variable) %>%
     unique()
 
