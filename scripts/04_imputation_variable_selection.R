@@ -70,7 +70,7 @@ Pr_model <- Pr %>%
                                 "T2","T2a","T2b","T2c",
                                 "T3","T3a","T3b","T3c",
                                 "T4")),
-    NStage_Diag = factor(NStage_Diag, levels = c("N0", "N1", "N2", "Nx"))
+    NStage_Diag = factor(NStage_Diag, levels = c("N0", "N1", "N2", "Nx")),
     Smoker_r = factor(Smoker_r, levels = c("no", "ex-smoker", "yes")),
 
     DM_r = factor(DM, levels = c("no", "yes")),
@@ -89,6 +89,7 @@ Pr_model <- Pr %>%
 
 date_cols <- c(
   "Date_RT_Start",
+  "Date_RT_End",
   "Last_Last_FU",
   "Date_last_FU",
   "Date_exitus",
@@ -106,6 +107,7 @@ Pr_gwas <- Pr_model %>%
     Vital_status = Vital_status,
 
     Date_RT_Start = Date_RT_Start,
+    Date_RT_End = Date_RT_End,
     Last_Last_FU = Last_Last_FU,
     Date_last_FU = Date_last_FU,
     Date_exitus = Date_exitus,
@@ -178,7 +180,7 @@ covsPr <- c(
 # ==========================
 # Separar filas Tx antes de imputar
 # Tx no es un dato perdido sino una categoría clínica propia:
-# "tumor primario no evaluable". No debe ser imputado.
+# "tumor primario no encontrado". No debe ser imputado.
 # ==========================
 
 idx_tx <- which(Pr_gwas$T_r == 0)       # índices de filas Tx
@@ -296,18 +298,18 @@ Pr_analysis <- Pr_gwas_imputed %>%
     ),
 
     EAU_Extent = case_when(
-  NStage_Diag %in% c("N1", "N2") ~ "Locally_advanced",
+      NStage_Diag %in% c("N1", "N2") ~ "Locally_advanced",
 
-  TStage_imputed %in% c("T3", "T3a", "T3b", "T3c", "T4") ~
-    "Locally_advanced",
+      TStage_imputed %in% c("T3", "T3a", "T3b", "T3c", "T4") ~
+        "Locally_advanced",
 
-  TStage_imputed %in% c(
-    "Tx", "T1", "T1b", "T1c",
-    "T2", "T2a", "T2b", "T2c"
-  ) ~ "Localised",
+      TStage_imputed %in% c(
+        "Tx", "T1", "T1b", "T1c",
+        "T2", "T2a", "T2b", "T2c"
+      ) ~ "Localised",
 
-  TRUE ~ NA_character_
-),
+      TRUE ~ NA_character_
+    ),
 
     EAU_Risk_Group = case_when(
       EAU_Risk_Score == "Low-risk" ~ "Low-risk",
@@ -342,10 +344,24 @@ Pr_analysis <- Pr_gwas_imputed %>%
   )
 
 
-# ── Convertir fechas a texto DD/MM/YYYY en Pr_model antes de exportar ──
+# Eliminar columnas auxiliares usadas solo para control de calidad
+# (Diag_Date, Date_HT, Last_FU_Late, Last_FU_Late2, Last_PSA_date se usaron
+# únicamente para validar/corregir Last_Last_FU en el script de limpieza;
+# no forman parte del dataset de modelado)
+
+qc_only_cols <- c(
+  "Diag_Date", "Date_HT",
+  "Last_FU_Late", "Last_FU_Late2", "Last_PSA_date"
+)
+
+Pr_model <- Pr_model %>%
+  select(-any_of(qc_only_cols))
+
+
+# Convertir fechas a texto DD/MM/YYYY en Pr_model antes de exportar
 
 date_cols_model <- c(
-  "Born_Date", "Date_RT_Start", "Last_Last_FU",
+  "Born_Date", "Date_RT_Start", "Date_RT_End", "Last_Last_FU",
   "Date_last_FU", "Date_exitus",
   "Biochemical_rec_date", "Local_rec_date",
   "Pelvic_rec_date", "Distant_rec_date",
