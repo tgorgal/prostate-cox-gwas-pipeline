@@ -95,7 +95,7 @@ Pr_surv <- Pr %>%
 
 neg_times <- Pr_surv %>%
   filter(if_any(ends_with("_time_days"), ~ .x < 0)) %>%
-  select(ID, Vital_status, ends_with("_time_days"))
+  dplyr::select(ID, Vital_status, ends_with("_time_days"))
 
 if (nrow(neg_times) > 0) {
   cat("⚠️  Aviso:", nrow(neg_times), "filas con tiempos de supervivencia negativos:\n")
