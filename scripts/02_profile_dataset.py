@@ -70,6 +70,11 @@ date_cols = [
     "Last_PSA_date",
 ]
 
+# Fecha centinela: -9 mal interpretado por Excel como fecha real
+# cuando la celda tenía formato de fecha (se lee como texto
+# "1899-12-21" en vez de como -9, porque este script usa dtype=str)
+EXCEL_EPOCH_SENTINEL_STRINGS = {"1899-12-21", "1899-12-21 00:00:00"}
+
 add("\n" + "=" * 80)
 add("REVISIÓN DE FECHAS")
 add("=" * 80)
@@ -89,8 +94,15 @@ for col in date_cols:
         ["ID", "Sample_ID", "NHC", col]
     ]
 
+    epoch_sentinel = df[s.isin(EXCEL_EPOCH_SENTINEL_STRINGS)][
+        ["ID", "Sample_ID", "NHC", col]
+    ]
+
     add(f"Fechas no interpretables excluyendo -9/empty: {len(suspicious)}")
     add(f"Valores numéricos tipo serial detectados: {len(numeric_like)}")
+    add(
+        f"Fechas centinela (-9 mal interpretado como 1899-12-21): {len(epoch_sentinel)}"
+    )
 
     if len(suspicious) > 0:
         add("\nEjemplos de fechas no interpretables:")
@@ -99,6 +111,11 @@ for col in date_cols:
     if len(numeric_like) > 0:
         add("\nEjemplos de valores numéricos tipo serial:")
         add(numeric_like.head(20).to_string(index=False))
+
+    if len(epoch_sentinel) > 0:
+        add("\nEjemplos de fechas centinela detectadas:")
+        add(epoch_sentinel.head(20).to_string(index=False))
+
 
 # 4. PSA: valores no numéricos
 add("\n" + "=" * 80)

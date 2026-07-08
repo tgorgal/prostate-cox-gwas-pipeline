@@ -215,14 +215,18 @@ for col in date_cols:
 # y por tanto se escapa de las comprobaciones habituales de -9)
 EXCEL_EPOCH_SENTINEL = pd.Timestamp("1899-12-21")
 
+
+def is_epoch_sentinel(x):
+    if pd.isna(x):
+        return False
+    if not isinstance(x, (pd.Timestamp, dt.datetime)):
+        return False
+    return pd.Timestamp(x).normalize() == EXCEL_EPOCH_SENTINEL
+
+
 for col in date_cols:
     if col in df.columns:
-        mask_sentinel = df[col].apply(
-            lambda x: (
-                isinstance(x, (pd.Timestamp, dt.datetime))
-                and pd.Timestamp(x).normalize() == EXCEL_EPOCH_SENTINEL
-            )
-        )
+        mask_sentinel = df[col].apply(is_epoch_sentinel)
 
         if mask_sentinel.any():
             warnings[f"{col}_excel_epoch_sentinel"] = df.loc[
