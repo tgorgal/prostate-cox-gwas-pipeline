@@ -2,7 +2,7 @@
 # 1. Filtro de categorías poco frecuentes (<10%, binarias y multinivel)
 # 2. Cox univariante (LR test, FDR por variable)
 # 3. StepAIC (bidireccional)
-# 4. LASSO (penalización, lambda.1se oficial + lambda.min diagnóstico)
+# 4. LASSO (informativo únicamente, no determina la selección final)
 # 5. Unión + variables forzadas
 # 6. Trazabilidad completa de todas las candidatas por outcome
 
@@ -19,13 +19,36 @@ output_file <- "results/08_variable_selection.xlsx"
 
 Pr <- read_excel(input_file, sheet = "survival_dataset")
 
-# Reimponer el orden de niveles de TStage_imputed
-# (se pierde al pasar por Excel)
+# ==========================
+# Reimponer niveles explícitos de TODAS las variables categóricas
+# (se pierden al pasar por Excel; as.factor() por defecto ordena
+# alfabéticamente, lo que puede cambiar silenciosamente la categoría
+# de referencia respecto a la definida en el script 04)
+# ==========================
+
 T_levels_full <- c("Tx","T1","T1b","T1c","T2","T2a","T2b","T2c",
                     "T3","T3a","T3b","T3c","T4")
 
+# NOTA: EAU_Risk_Score nunca fue un factor con niveles explícitos en el
+# script 04 (se crea como texto), así que aquí se fija por primera vez.
+# Se usa "Low-risk" como referencia por ser la práctica clínica estándar
+# en escalas de riesgo prostático (confirmar si se prefiere otra).
+eau_risk_levels <- c("Low-risk", "Intermediate_Favourable",
+                      "Intermediate_Unfavourable", "High_risk")
+
+binary_no_yes_vars <- c(
+  "DM_r_label", "RA_r_label", "HTA_r_label", "HC_r_label",
+  "CardDis_r_label", "TUR_r_label", "HRR_r_label", "HT_Conc_label"
+)
+
 Pr <- Pr %>%
-  mutate(TStage_imputed = factor(TStage_imputed, levels = T_levels_full))
+  mutate(
+    TStage_imputed = factor(TStage_imputed, levels = T_levels_full),
+    Smoker_r_label = factor(Smoker_r_label, levels = c("no", "ex-smoker", "yes")),
+    EAU_Risk_Score = factor(EAU_Risk_Score, levels = eau_risk_levels),
+    ISUP_Grade = factor(ISUP_Grade, levels = 1:5),
+    across(all_of(binary_no_yes_vars), ~ factor(.x, levels = c("no", "yes")))
+  )
 
 outcomes <- list(
   OS = c("OS_time_months", "OS_event"),
@@ -51,20 +74,13 @@ candidate_covariates <- c(
 # Opción B: se fuerza el score compuesto (EAU_Risk_Score), que ya
 # incorpora el efecto de PSA/ISUP/T agrupados por relevancia clínica;
 # sus componentes individuales quedan libres para competir en la
-# selección (univariante/stepAIC/LASSO) por si aportan señal adicional.
+# selección (univariante/stepAIC) por si aportan señal adicional.
 forced_covariates <- c("Edad_r", "EAU_Risk_Score")
 
 categorical_covariates <- c(
   "TStage_imputed", "ISUP_Grade", "EAU_Risk_Score", "Smoker_r_label",
-  "DM_r_label", "RA_r_label", "HTA_r_label", "HC_r_label",
-  "CardDis_r_label", "TUR_r_label", "HRR_r_label", "HT_Conc_label"
+  binary_no_yes_vars
 )
-
-Pr <- Pr %>%
-  mutate(across(
-    any_of(setdiff(categorical_covariates, "TStage_imputed")),
-    as.factor
-  ))
 
 binary_filter_all <- list()
 univariate_all <- list()
@@ -251,7 +267,12 @@ for (outcome_name in names(outcomes)) {
   }
 
   # ==========================
-  # 4. LASSO (lambda.1se oficial + lambda.min diagnóstico)
+  # 4. LASSO — Rol Informativo únicamente (no determina la selección final)
+  # Con el tamaño muestral/eventos disponibles, la validación cruzada
+  # no logra encontrar una penalización estable (lambda.min tiende al
+  # límite inferior de la rejilla, seleccionando prácticamente todas
+  # las variables). Se conserva como referencia en el Excel, pero ya
+  # NO participa en el cálculo de final_candidates.
   # ==========================
 
   lasso_data <- data_outcome %>%
@@ -272,19 +293,16 @@ for (outcome_name in names(outcomes)) {
     )
 
     if (!is.null(cv_fit)) {
-      # --- Selección oficial: lambda.1se (criterio ya acordado) ---
       coefs_1se <- as.matrix(coef(cv_fit, s = "lambda.1se"))
       selected_1se <- coefs_1se[coefs_1se[, 1] != 0, , drop = FALSE]
 
-      # --- Comprobación diagnóstica: lambda.min (más permisivo) ---
       coefs_min <- as.matrix(coef(cv_fit, s = "lambda.min"))
       selected_min <- coefs_min[coefs_min[, 1] != 0, , drop = FALSE]
       lasso_selected_min <- rownames(selected_min)
 
       cat(
-        "\n[", outcome_name, "] LASSO — lambda.1se: ", nrow(selected_1se),
-        " variable(s) seleccionada(s) | lambda.min: ", nrow(selected_min),
-        " variable(s) seleccionada(s)\n",
+        "\n[", outcome_name, "] LASSO (informativo) — lambda.1se: ", nrow(selected_1se),
+        " variable(s) | lambda.min: ", nrow(selected_min), " variable(s)\n",
         sep = ""
       )
 
@@ -293,7 +311,7 @@ for (outcome_name in names(outcomes)) {
           outcome = outcome_name,
           selected_term = rownames(selected_1se),
           coefficient = selected_1se[, 1],
-          method = "LASSO (lambda.1se)",
+          method = "LASSO (lambda.1se, informativo)",
           note = NA_character_
         )
 
@@ -303,20 +321,19 @@ for (outcome_name in names(outcomes)) {
           outcome = outcome_name,
           selected_term = NA_character_,
           coefficient = NA_real_,
-          method = "LASSO (lambda.1se)",
+          method = "LASSO (lambda.1se, informativo)",
           note = "No variables selected"
         )
 
         lasso_selected <- character(0)
       }
 
-      # Tabla diagnóstica con lambda.min, guardada aparte (no afecta a la selección final)
       if (nrow(selected_min) > 0) {
         lasso_results_min <- data.frame(
           outcome = outcome_name,
           selected_term = rownames(selected_min),
           coefficient = selected_min[, 1],
-          method = "LASSO (lambda.min, diagnóstico)",
+          method = "LASSO (lambda.min, informativo)",
           note = NA_character_
         )
       } else {
@@ -324,7 +341,7 @@ for (outcome_name in names(outcomes)) {
           outcome = outcome_name,
           selected_term = NA_character_,
           coefficient = NA_real_,
-          method = "LASSO (lambda.min, diagnóstico)",
+          method = "LASSO (lambda.min, informativo)",
           note = "No variables selected"
         )
       }
@@ -333,7 +350,7 @@ for (outcome_name in names(outcomes)) {
         outcome = outcome_name,
         selected_term = NA_character_,
         coefficient = NA_real_,
-        method = "LASSO (lambda.1se)",
+        method = "LASSO (lambda.1se, informativo)",
         note = "LASSO failed"
       )
 
@@ -341,7 +358,7 @@ for (outcome_name in names(outcomes)) {
         outcome = outcome_name,
         selected_term = NA_character_,
         coefficient = NA_real_,
-        method = "LASSO (lambda.min, diagnóstico)",
+        method = "LASSO (lambda.min, informativo)",
         note = "LASSO failed"
       )
 
@@ -353,7 +370,7 @@ for (outcome_name in names(outcomes)) {
       outcome = outcome_name,
       selected_term = NA_character_,
       coefficient = NA_real_,
-      method = "LASSO (lambda.1se)",
+      method = "LASSO (lambda.1se, informativo)",
       note = "Not enough complete cases or events"
     )
 
@@ -361,7 +378,7 @@ for (outcome_name in names(outcomes)) {
       outcome = outcome_name,
       selected_term = NA_character_,
       coefficient = NA_real_,
-      method = "LASSO (lambda.min, diagnóstico)",
+      method = "LASSO (lambda.min, informativo)",
       note = "Not enough complete cases or events"
     )
 
@@ -371,6 +388,8 @@ for (outcome_name in names(outcomes)) {
 
   # ==========================
   # 5. Tabla final de candidatas
+  # LASSO queda excluido del cálculo de final_candidates (rol informativo);
+  # se conserva únicamente como columna de referencia.
   # ==========================
 
   forced_available <- forced_covariates[
@@ -380,8 +399,7 @@ for (outcome_name in names(outcomes)) {
   final_candidates <- unique(c(
     forced_available,
     univariate_selected,
-    stepaic_selected,
-    lasso_selected
+    stepaic_selected
   ))
 
   final_table <- data.frame(
@@ -390,11 +408,11 @@ for (outcome_name in names(outcomes)) {
     forced = final_candidates %in% forced_available,
     selected_univariate = final_candidates %in% univariate_selected,
     selected_stepAIC = final_candidates %in% stepaic_selected,
-    selected_LASSO = sapply(
+    selected_LASSO_info = sapply(
       final_candidates,
       function(v) any(grepl(paste0("^", v), lasso_selected))
     ),
-    selected_LASSO_min = sapply(
+    selected_LASSO_min_info = sapply(
       final_candidates,
       function(v) any(grepl(paste0("^", v), lasso_selected_min))
     )
@@ -402,15 +420,11 @@ for (outcome_name in names(outcomes)) {
 
   # ==========================
   # 6. Trazabilidad completa: estado de cada candidata para este outcome
+  # (LASSO ya no determina "Incluida"; se muestra solo como columna informativa)
   # ==========================
 
-  # Variables que no llegaron ni a estar disponibles en el dataset
   vars_not_available <- setdiff(candidate_covariates, vars_available)
-
-  # Variables disponibles pero excluidas por categoría rara (<10%)
   vars_excluded_rare <- intersect(vars_available, excluded_vars)
-
-  # Variables que pasaron el filtro de categoría rara pero no tenían variabilidad
   vars_after_rare_filter <- setdiff(vars_available, excluded_vars)
   vars_no_variability <- setdiff(vars_after_rare_filter, vars_eligible)
 
@@ -425,10 +439,8 @@ for (outcome_name in names(outcomes)) {
       is_forced <- var %in% forced_available
       is_uni <- var %in% univariate_selected
       is_step <- var %in% stepaic_selected
-      is_lasso <- any(grepl(paste0("^", var), lasso_selected))
-      is_lasso_min <- any(grepl(paste0("^", var), lasso_selected_min))
 
-      if (is_forced || is_uni || is_step || is_lasso) {
+      if (is_forced || is_uni || is_step) {
         status <- "Incluida"
       } else {
         status <- "No seleccionada por ningún método"
@@ -442,8 +454,8 @@ for (outcome_name in names(outcomes)) {
       forced = var %in% forced_available,
       selected_univariate = var %in% univariate_selected,
       selected_stepAIC = var %in% stepaic_selected,
-      selected_LASSO = any(grepl(paste0("^", var), lasso_selected)),
-      selected_LASSO_min = any(grepl(paste0("^", var), lasso_selected_min))
+      selected_LASSO_info = any(grepl(paste0("^", var), lasso_selected)),
+      selected_LASSO_min_info = any(grepl(paste0("^", var), lasso_selected_min))
     )
   })
 
@@ -462,8 +474,8 @@ write_xlsx(
     binary_filter = bind_rows(binary_filter_all),
     univariate_selection = bind_rows(univariate_all),
     stepAIC_selection = bind_rows(stepaic_all),
-    lasso_selection = bind_rows(lasso_all),
-    lasso_selection_lambda_min = bind_rows(lasso_min_all),
+    lasso_selection_info = bind_rows(lasso_all),
+    lasso_selection_lambda_min_info = bind_rows(lasso_min_all),
     all_candidates_status = bind_rows(all_candidates_status_all),
     final_covariate_candidates = bind_rows(final_all)
   ),
