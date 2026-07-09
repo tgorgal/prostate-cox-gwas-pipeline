@@ -355,7 +355,7 @@ qc_only_cols <- c(
 )
 
 Pr_model <- Pr_model %>%
-  select(-any_of(qc_only_cols))
+  dplyr::select(-any_of(qc_only_cols))
 
 
 # Convertir fechas a texto DD/MM/YYYY en Pr_model antes de exportar
