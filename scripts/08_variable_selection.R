@@ -64,11 +64,11 @@ outcomes <- list(
 # EAU_Risk_Score, que ya los combina; no se fuerzan ambos a la vez)
 # ==========================
 
-candidate_covariates <- c(
+candidate_covariates <- c(  # Quitamos PTV1_r y fx_r porque son altamente colineales con dose_fx_r
   "Edad_r", "PSA_r", "TStage_imputed", "ISUP_Grade", "EAU_Risk_Score",
   "Smoker_r_label", "DM_r_label", "RA_r_label", "HTA_r_label",
   "HC_r_label", "CardDis_r_label", "TUR_r_label", "HRR_r_label",
-  "PTV1_r", "dose_fx_r", "fx_r", "PTV3_r", "HT_Conc_label"
+  "dose_fx_r", "HT_Conc_label" # Quitamos PTV3_r por mediana = 0
 )
 
 # Opción B: se fuerza el score compuesto (EAU_Risk_Score), que ya
