@@ -159,6 +159,11 @@ Multivariable Cox models (planned)
         ▼
 Cox-GWAS
 ```
+---
+
+## Alternative multiple-imputation workflow
+
+The main pipeline currently uses a completed imputed dataset after MICE. An alternative branch/workflow keeps all five imputed datasets through downstream analyses to allow pooled inference across imputations.
 
 ---
 

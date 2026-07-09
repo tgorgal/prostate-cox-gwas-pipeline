@@ -18,7 +18,7 @@ output_model <- "results/04_model_dataset.xlsx"
 output_gwas <- "results/04_gwas_covariates.tsv"
 output_derived <- "results/04_gwas_covariates_derived.tsv"
 
-set.seed(1)
+set.seed(42)
 
 # Cargar datos
 
