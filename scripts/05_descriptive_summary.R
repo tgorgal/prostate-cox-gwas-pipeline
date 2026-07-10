@@ -27,6 +27,8 @@ categorical_vars <- c(
   "T_r_label",
   "ISUP_Grade",
   "EAU_Risk_Score",
+  "EAU_Extent",
+  "EAU_Risk_Group",
   "Smoker_r_label",
   "DM_r_label",
   "RA_r_label",

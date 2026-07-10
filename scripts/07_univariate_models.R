@@ -25,6 +25,8 @@ covariates <- c(
   "Gl_Score_Diag",
   "ISUP_Grade",
   "EAU_Risk_Score",
+  "EAU_Extent",
+  "EAU_Risk_Group",
   "Smoker_r",
   "DM_r",
   "RA_r",

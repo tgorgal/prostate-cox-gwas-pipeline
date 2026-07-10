@@ -32,9 +32,13 @@ T_levels_full <- c("Tx","T1","T1b","T1c","T2","T2a","T2b","T2c",
 # NOTA: EAU_Risk_Score nunca fue un factor con niveles explícitos en el
 # script 04 (se crea como texto), así que aquí se fija por primera vez.
 # Se usa "Low-risk" como referencia por ser la práctica clínica estándar
-# en escalas de riesgo prostático (confirmar si se prefiere otra).
+# en escalas de riesgo prostático.
 eau_risk_levels <- c("Low-risk", "Intermediate_Favourable",
                       "Intermediate_Unfavourable", "High_risk")
+
+eau_extent_levels <- c("Localised", "Locally_advanced")
+
+eau_risk_group_levels <- c("Low-risk", "Intermediate-risk", "High-risk")
 
 binary_no_yes_vars <- c(
   "DM_r_label", "RA_r_label", "HTA_r_label", "HC_r_label",
@@ -46,6 +50,8 @@ Pr <- Pr %>%
     TStage_imputed = factor(TStage_imputed, levels = T_levels_full),
     Smoker_r_label = factor(Smoker_r_label, levels = c("no", "ex-smoker", "yes")),
     EAU_Risk_Score = factor(EAU_Risk_Score, levels = eau_risk_levels),
+    EAU_Extent = factor(EAU_Extent, levels = eau_extent_levels),
+    EAU_Risk_Group = factor(EAU_Risk_Group, levels = eau_risk_group_levels),
     ISUP_Grade = factor(ISUP_Grade, levels = 1:5),
     across(all_of(binary_no_yes_vars), ~ factor(.x, levels = c("no", "yes")))
   )
@@ -65,7 +71,8 @@ outcomes <- list(
 # ==========================
 
 candidate_covariates <- c(  # Quitamos PTV1_r y fx_r porque son altamente colineales con dose_fx_r
-  "Edad_r", "PSA_r", "TStage_imputed", "ISUP_Grade", "EAU_Risk_Score",
+  "Edad_r", "PSA_r", "TStage_imputed", "ISUP_Grade",
+  "EAU_Risk_Score", "EAU_Extent", "EAU_Risk_Group",
   "Smoker_r_label", "DM_r_label", "RA_r_label", "HTA_r_label",
   "HC_r_label", "CardDis_r_label", "TUR_r_label", "HRR_r_label",
   "dose_fx_r", "HT_Conc_label" # Quitamos PTV3_r por mediana = 0
@@ -78,7 +85,8 @@ candidate_covariates <- c(  # Quitamos PTV1_r y fx_r porque son altamente coline
 forced_covariates <- c("Edad_r", "EAU_Risk_Score")
 
 categorical_covariates <- c(
-  "TStage_imputed", "ISUP_Grade", "EAU_Risk_Score", "Smoker_r_label",
+  "TStage_imputed", "ISUP_Grade", "EAU_Risk_Score",
+  "EAU_Extent", "EAU_Risk_Group", "Smoker_r_label",
   binary_no_yes_vars
 )
 
