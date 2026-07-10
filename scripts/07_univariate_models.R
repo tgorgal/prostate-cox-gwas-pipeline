@@ -10,13 +10,41 @@ output_file <- "results/07_univariate_models.xlsx"
 
 Pr <- read_excel(input_file, sheet = "survival_dataset")
 
-# Reimponer el orden de niveles de TStage_imputed
-# (se pierde al pasar por Excel entre el script 04 y este)
+# ==========================
+# Reimponer niveles explícitos de TODAS las variables categóricas
+# (se pierden al pasar por Excel entre el script 04 y este; as.factor()
+# por defecto ordena alfabéticamente, lo que puede cambiar silenciosamente
+# la categoría de referencia respecto a la definida en el script 04,
+# y también respecto a la usada en 08_variable_selection.R)
+# ==========================
+
 T_levels_full <- c("Tx","T1","T1b","T1c","T2","T2a","T2b","T2c",
                     "T3","T3a","T3b","T3c","T4")
 
+# NOTA: EAU_Risk_Score nunca fue un factor con niveles explícitos en el
+# script 04 (se crea como texto). Se usa "Low-risk" como referencia por
+# ser la práctica clínica estándar en escalas de riesgo prostático.
+# Estos niveles deben coincidir con los usados en 08_variable_selection.R
+# para que los HR sean comparables/interpretables de la misma forma.
+eau_risk_levels <- c("Low-risk", "Intermediate_Favourable",
+                      "Intermediate_Unfavourable", "High_risk")
+
+eau_extent_levels <- c("Localised", "Locally_advanced")
+
+eau_risk_group_levels <- c("Low-risk", "Intermediate-risk", "High-risk")
+
+
+# El resto de variables no haría falta categorizarlas porque usamos la versión
+# numérica "_r" de cada una, en lugar de "_r_label" que es la versión con texto
+
+
 Pr <- Pr %>%
-  mutate(TStage_imputed = factor(TStage_imputed, levels = T_levels_full))
+  mutate(
+    TStage_imputed = factor(TStage_imputed, levels = T_levels_full),
+    EAU_Risk_Score  = factor(EAU_Risk_Score, levels = eau_risk_levels),
+    EAU_Extent      = factor(EAU_Extent, levels = eau_extent_levels),
+    EAU_Risk_Group  = factor(EAU_Risk_Group, levels = eau_risk_group_levels)
+  )
 
 covariates <- c(
   "Edad_r",
