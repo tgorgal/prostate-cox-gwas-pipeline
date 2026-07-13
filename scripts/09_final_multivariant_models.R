@@ -235,32 +235,51 @@ for (outcome_name in names(outcomes)) {
       dplyr::select(outcome, term, chisq, df, p)
   }
 
-  # --- VIF (solo si hay >= 2 covariables; con 1 no aplica) ---
+    # --- VIF (solo tiene sentido con >= 2 covariables; con 1 no aplica) ---
   if (length(covs) >= 2) {
-    vif_vals <- tryCatch(car::vif(model), error = function(e) NULL)
+    vif_error_message <- NA_character_
+
+    vif_vals <- tryCatch(
+      car::vif(model),
+      error = function(e) {
+        vif_error_message <<- conditionMessage(e)
+        NULL
+      }
+    )
 
     if (!is.null(vif_vals)) {
       if (is.matrix(vif_vals)) {
-        # Variables categóricas con >1 grado de libertad devuelven
-        # GVIF, Df, GVIF^(1/(2*Df)) — se usa esta última columna,
-        # comparable directamente al VIF clásico independientemente
-        # de los grados de libertad de cada término. Ver nota en la
-        # hoja "vif_notes" sobre la escala de esta cantidad.
         vif_df <- data.frame(
           outcome = outcome_name,
           term = rownames(vif_vals),
-          VIF_adjusted = vif_vals[, "GVIF^(1/(2*Df))"]
+          VIF_adjusted = vif_vals[, "GVIF^(1/(2*Df))"],
+          note = NA_character_
         )
       } else {
         vif_df <- data.frame(
           outcome = outcome_name,
           term = names(vif_vals),
-          VIF_adjusted = as.numeric(vif_vals)
+          VIF_adjusted = as.numeric(vif_vals),
+          note = NA_character_
         )
       }
 
       vif_results_all[[outcome_name]] <- vif_df
+    } else {
+      vif_results_all[[outcome_name]] <- data.frame(
+        outcome = outcome_name,
+        term = NA_character_,
+        VIF_adjusted = NA_real_,
+        note = paste0("VIF failed: ", vif_error_message)
+      )
     }
+  } else {
+    vif_results_all[[outcome_name]] <- data.frame(
+      outcome = outcome_name,
+      term = NA_character_,
+      VIF_adjusted = NA_real_,
+      note = "VIF not applicable: fewer than 2 covariates in the model"
+    )
   }
 
   cat(

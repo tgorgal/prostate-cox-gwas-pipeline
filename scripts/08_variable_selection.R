@@ -72,7 +72,9 @@ outcomes <- list(
 
 candidate_covariates <- c(  # Quitamos PTV1_r y fx_r porque son altamente colineales con dose_fx_r
   "Edad_r", "PSA_r", "TStage_imputed", "ISUP_Grade",
-  "EAU_Risk_Score", "EAU_Extent", "EAU_Risk_Group",
+  #"EAU_Risk_Score",
+  "EAU_Extent",
+  "EAU_Risk_Group",
   "Smoker_r_label", "DM_r_label", "RA_r_label", "HTA_r_label",
   "HC_r_label", "CardDis_r_label", "TUR_r_label", "HRR_r_label",
   "dose_fx_r", "HT_Conc_label" # Quitamos PTV3_r por mediana = 0
@@ -82,7 +84,11 @@ candidate_covariates <- c(  # Quitamos PTV1_r y fx_r porque son altamente coline
 # incorpora el efecto de PSA/ISUP/T agrupados por relevancia clínica;
 # sus componentes individuales quedan libres para competir en la
 # selección (univariante/stepAIC) por si aportan señal adicional.
-forced_covariates <- c("Edad_r", "EAU_Risk_Score")
+#forced_covariates <- c("Edad_r", "EAU_Risk_Score")
+#forced_covariates <- c("Edad_r")
+forced_covariates <- c("Edad_r", "EAU_Risk_Group")
+
+
 
 categorical_covariates <- c(
   "TStage_imputed", "ISUP_Grade", "EAU_Risk_Score",
